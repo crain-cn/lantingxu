@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>登录中…</title>
+  <style>
+    body { font-family: system-ui, sans-serif; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; background: #1a1916; color: #e8e4dc; }
+    .box { text-align: center; }
+    .err { color: #b85c5c; margin-top: 1rem; }
+    a { color: #c9a86c; }
+  </style>
+</head>
+<body>
+  <div class="box">
+    <p id="msg">正在登录…</p>
+    <p class="err" id="err"></p>
+    <p><a href="/" id="back">返回首页</a></p>
+  </div>
+  <script>
+    (function () {
+      const params = new URLSearchParams(location.search);
+      const errEl = document.getElementById("err");
+      const msgEl = document.getElementById("msg");
+      const backEl = document.getElementById("back");
+
+      const error = params.get("error");
+      if (error) {
+        msgEl.textContent = "授权未完成";
+        errEl.textContent = params.get("error_description") || error;
+        return;
+      }
+      const code = params.get("code");
+      if (!code) {
+        msgEl.textContent = "未收到授权码";
+        errEl.textContent = "请从首页点击「登录 SecondMe」重试。";
+        return;
+      }
+      const apiBase = location.origin;
+      const getRedirectUri = () =>
+        fetch(apiBase + "/api/config")
+          .then((r) => r.json())
+          .then((c) => c.redirectUri || location.origin + "/callback.html");
+      getRedirectUri().then((redirect_uri) =>
+        fetch(apiBase + "/api/oauth/token", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ code, redirect_uri }),
+        })
+        .then((r) => r.json())
+        .then((data) => {
+          if (data.accessToken) {
+            sessionStorage.setItem("secondme_access_token", data.accessToken);
+            sessionStorage.setItem("secondme_refresh_token", data.refreshToken || "");
+            sessionStorage.setItem("secondme_token_time", String(Date.now()));
+            sessionStorage.setItem("secondme_expires_in", String(data.expiresIn || 7200));
+            msgEl.textContent = "登录成功，正在跳转…";
+            location.replace("/");
+          } else {
+            msgEl.textContent = "换取 Token 失败";
+            errEl.textContent = data.message || JSON.stringify(data);
+          }
+        })
+        .catch((e) => {
+          msgEl.textContent = "请求失败";
+          errEl.textContent = e.message;
+        });
+    })();
+  </script>
+</body>
+</html>

@@ -1,0 +1,836 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>兰亭序 · 故事续写</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;600&family=ZCOOL+XiaoWei&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg: #141210;
+      --bg-wash: linear-gradient(165deg, #1c1916 0%, #141210 40%, #0f0d0b 100%);
+      --paper: #252119;
+      --paper-edge: rgba(201, 168, 108, 0.08);
+      --ink: #eae6de;
+      --ink-dim: #8c8579;
+      --accent: #c9a86c;
+      --accent-soft: rgba(201, 168, 108, 0.22);
+      --accent-glow: rgba(201, 168, 108, 0.12);
+      --suspense: #a68b6a;
+      --success: #7d9d7a;
+      --red-seal: #a64d4d;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: "Noto Serif SC", serif;
+      background: var(--bg-wash);
+      color: var(--ink);
+      min-height: 100vh;
+      line-height: 1.9;
+      position: relative;
+      overflow-x: hidden;
+    }
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.03'/%3E%3C/svg%3E");
+      pointer-events: none;
+      z-index: 0;
+    }
+    .bg-figure {
+      position: fixed;
+      right: 0;
+      bottom: 0;
+      width: 52%;
+      max-width: 520px;
+      height: 92vh;
+      max-height: 900px;
+      pointer-events: none;
+      z-index: 0;
+      /* 古风女子侧影：亮色轮廓，衬黑底 */
+      background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 220 460'%3E%3Cdefs%3E%3ClinearGradient id='light' x1='0%25' y1='100%25' x2='100%25' y2='0%25'%3E%3Cstop offset='0%25' stop-color='%23e8e4dc'/%3E%3Cstop offset='100%25' stop-color='%23c9a86c'/%3E%3C/linearGradient%3E%3C/defs%3E%3Cpath fill='url(%23light)' fill-opacity='0.22' stroke='%23e8e4dc' stroke-opacity='0.5' stroke-width='1.5' stroke-linejoin='round' d='M110 12 C132 10 148 28 152 52 C154 68 148 88 138 108 L142 132 C158 138 178 162 182 200 L186 400 L180 452 L110 458 L40 452 L34 400 L38 200 C42 162 62 138 78 132 L82 108 C72 88 66 68 68 52 C72 28 88 10 110 12 Z'/%3E%3C/svg%3E") no-repeat 100% 100% / contain;
+      opacity: 1;
+    }
+    .page-layout {
+      display: flex;
+      max-width: 1280px;
+      margin: 0 auto;
+      padding: 2rem 1.5rem 4rem;
+      position: relative;
+      z-index: 2;
+      gap: 2.5rem;
+    }
+    .sidebar {
+      flex-shrink: 0;
+      width: 204px;
+      padding-top: 0.5rem;
+    }
+    .sidebar-nav {
+      list-style: none;
+      border: 1px solid var(--paper-edge);
+      background: var(--paper);
+      border-radius: 2px;
+      padding: 0.5rem 0;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.2);
+    }
+    .sidebar-nav li { margin: 0; }
+    .sidebar-nav a {
+      display: block;
+      padding: 0.6rem 1rem;
+      color: var(--ink-dim);
+      text-decoration: none;
+      font-size: 0.9rem;
+      letter-spacing: 0.08em;
+      border-left: 3px solid transparent;
+    }
+    .sidebar-nav a:hover { color: var(--ink); background: var(--accent-glow); }
+    .sidebar-nav a.active { color: var(--accent); border-left-color: var(--accent); background: var(--accent-glow); }
+    .sidebar .label {
+      font-size: 0.75rem;
+      color: var(--ink-dim);
+      letter-spacing: 0.1em;
+      margin: 1.25rem 0 0.5rem;
+      padding-left: 0.25rem;
+    }
+    .sidebar-status {
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+    }
+    .sidebar-status label {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.85rem;
+      color: var(--ink-dim);
+      cursor: pointer;
+    }
+    .sidebar-status input { accent-color: var(--accent); }
+    .sidebar-status label:has(input:checked) { color: var(--accent); }
+    .sidebar-list {
+      margin-top: 1.25rem;
+      border: 1px solid var(--paper-edge);
+      background: var(--paper);
+      border-radius: 2px;
+      overflow: hidden;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.2);
+    }
+    .sidebar-list .list-title {
+      font-size: 0.75rem;
+      color: var(--ink-dim);
+      letter-spacing: 0.1em;
+      padding: 0.5rem 0.75rem;
+      border-bottom: 1px solid var(--paper-edge);
+    }
+    .sidebar-list ul { list-style: none; padding: 0.25rem 0; }
+    .sidebar-list li {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.5rem 0.75rem;
+      border-bottom: 1px solid rgba(255,255,255,0.03);
+      font-size: 0.85rem;
+    }
+    .sidebar-list li:last-child { border-bottom: none; }
+    .sidebar-list li a { color: var(--ink); text-decoration: none; flex: 1; min-width: 0; }
+    .sidebar-list li a:hover { color: var(--accent); }
+    .sidebar-list .rank {
+      flex-shrink: 0;
+      width: 1.25rem;
+      text-align: center;
+      color: var(--ink-dim);
+      font-size: 0.8rem;
+    }
+    .sidebar-list .rank.top3 { color: var(--accent); font-weight: 600; }
+    .sidebar-list .status-tag {
+      flex-shrink: 0;
+      font-size: 0.65rem;
+      padding: 0.15rem 0.4rem;
+      border-radius: 2px;
+      background: var(--accent-glow);
+      color: var(--accent);
+    }
+    .sidebar-list .status-tag.completed { background: rgba(125, 157, 122, 0.25); color: var(--success); }
+    @media (max-width: 768px) {
+      .page-layout { flex-direction: column; align-items: stretch; }
+      .sidebar { width: 100%; display: flex; flex-wrap: wrap; gap: 1rem; align-items: flex-start; }
+      .sidebar-nav { flex: 1; min-width: 140px; }
+      .sidebar .label { margin-top: 0.5rem; width: 100%; }
+      .sidebar-status { flex-direction: row; flex-wrap: wrap; }
+    }
+    .container {
+      flex: 1;
+      min-width: 0;
+      max-width: 680px;
+      padding: 0.5rem 0 0;
+    }
+    header {
+      text-align: center;
+      margin-bottom: 1rem;
+      position: relative;
+    }
+    header::after {
+      content: "";
+      display: block;
+      width: 120px;
+      height: 1px;
+      margin: 1.75rem auto 0;
+      background: linear-gradient(90deg, transparent, var(--accent-soft), transparent);
+    }
+    .title-wrap {
+      position: relative;
+      display: inline-block;
+    }
+    .title-wrap::before,
+    .title-wrap::after {
+      content: "※";
+      position: absolute;
+      top: 50%;
+      transform: translateY(-50%);
+      font-size: 0.65rem;
+      letter-spacing: 0;
+    }
+    .title-wrap::before { left: -1.4em; }
+    .title-wrap::after { right: -1.4em; }
+    h1 {
+      font-family: "ZCOOL XiaoWei", "Noto Serif SC", serif;
+      font-size: 2.25rem;
+      font-weight: 400;
+      color: var(--accent);
+      letter-spacing: 0.35em;
+      text-shadow: 0 0 40px var(--accent-glow);
+    }
+    .sub {
+      font-size: 0.8rem;
+      color: var(--ink-dim);
+      margin-top: 0.6rem;
+      letter-spacing: 0.12em;
+      max-width: 28em;
+      margin-left: auto;
+      margin-right: auto;
+    }
+    .auth-row { margin-top: 1rem; display: flex; align-items: center; justify-content: center; gap: 0.5rem; flex-wrap: wrap; }
+    .auth-status { font-size: 0.78rem; color: var(--ink-dim); }
+    .auth-status.ready { color: var(--success); }
+    .btn-sm { padding: 0.35rem 0.75rem; font-size: 0.8rem; }
+    .hidden { display: none; }
+    .story-canvas {
+      background: var(--paper);
+      border-radius: 2px;
+      padding: 2.25rem 2.5rem;
+      min-height: 120px;
+      margin-bottom: 1.75rem;
+      border: 1px solid var(--paper-edge);
+      box-shadow: 0 4px 24px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.02);
+      position: relative;
+    }
+    .story-canvas::before {
+      content: "";
+      position: absolute;
+      left: 0;
+      top: 0;
+      bottom: 0;
+      width: 3px;
+      background: linear-gradient(180deg, transparent, var(--accent-soft), transparent);
+      border-radius: 2px 0 0 2px;
+      opacity: 0.6;
+    }
+    .story-canvas:empty::before {
+      content: "故事将从这里开始… 点击「续写」生成第一段。";
+      color: var(--ink-dim);
+      font-style: italic;
+      position: static;
+      background: none;
+      opacity: 1;
+    }
+    .segment {
+      margin-bottom: 1.5rem;
+      position: relative;
+      padding-left: 1.25rem;
+      border-left: 2px solid var(--accent-soft);
+    }
+    .segment:last-child { margin-bottom: 0; }
+    .segment-meta {
+      font-size: 0.72rem;
+      color: var(--ink-dim);
+      margin-bottom: 0.4rem;
+      letter-spacing: 0.05em;
+    }
+    .segment-meta span { margin-right: 0.75rem; }
+    .segment-meta .tag { color: var(--accent); }
+    .segment-text { text-align: justify; text-indent: 2em; }
+    .suspense-box {
+      background: linear-gradient(135deg, rgba(139, 115, 85, 0.12) 0%, rgba(139, 115, 85, 0.06) 100%);
+      border-left: 3px solid var(--suspense);
+      padding: 1rem 1.25rem;
+      margin: 1.25rem 0;
+      font-size: 0.9rem;
+      color: var(--ink-dim);
+      border-radius: 0 3px 3px 0;
+      letter-spacing: 0.02em;
+    }
+    .suspense-box strong { color: var(--suspense); font-weight: 600; }
+    .controls {
+      display: grid;
+      gap: 1.1rem;
+      margin-bottom: 1.5rem;
+      padding: 1.5rem 0;
+      border-top: 1px solid var(--paper-edge);
+    }
+    .control-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      align-items: center;
+    }
+    .control-row label {
+      font-size: 0.82rem;
+      color: var(--ink-dim);
+      min-width: 4.2em;
+      letter-spacing: 0.06em;
+    }
+    .chip {
+      display: inline-block;
+      padding: 0.4rem 0.85rem;
+      border-radius: 2px;
+      font-size: 0.8rem;
+      cursor: pointer;
+      border: 1px solid var(--accent-soft);
+      color: var(--ink);
+      background: transparent;
+      transition: background 0.2s, color 0.2s, border-color 0.2s;
+      letter-spacing: 0.04em;
+    }
+    .chip:hover { background: var(--accent-soft); }
+    .chip.active { background: var(--accent); color: var(--bg); border-color: var(--accent); }
+    .chip input { display: none; }
+    .action-row {
+      display: flex;
+      gap: 0.85rem;
+      align-items: center;
+      flex-wrap: wrap;
+      margin-top: 0.5rem;
+    }
+    .btn {
+      padding: 0.65rem 1.4rem;
+      border-radius: 2px;
+      font-family: inherit;
+      font-size: 0.92rem;
+      cursor: pointer;
+      border: none;
+      transition: opacity 0.2s, transform 0.05s, box-shadow 0.2s;
+      letter-spacing: 0.08em;
+    }
+    .btn:active { transform: scale(0.98); }
+    .btn-primary {
+      background: var(--accent);
+      color: var(--bg);
+      box-shadow: 0 2px 12px var(--accent-glow);
+    }
+    .btn-primary:hover { opacity: 0.92; box-shadow: 0 4px 20px var(--accent-glow); }
+    .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; box-shadow: none; }
+    .btn-ghost {
+      background: transparent;
+      color: var(--ink-dim);
+      border: 1px solid var(--accent-soft);
+    }
+    .btn-ghost:hover { color: var(--ink); }
+    .status { font-size: 0.82rem; color: var(--ink-dim); }
+    .status.generating { color: var(--accent); }
+    .status.error { color: #b85c5c; }
+    .new-role-input {
+      padding: 0.45rem 0.7rem;
+      border-radius: 2px;
+      border: 1px solid var(--accent-soft);
+      background: var(--paper);
+      color: var(--ink);
+      font-family: inherit;
+      font-size: 0.9rem;
+      width: 140px;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+    .new-role-input:focus {
+      outline: none;
+      border-color: var(--accent);
+      box-shadow: 0 0 0 2px var(--accent-glow);
+    }
+    .new-role-input::placeholder { color: var(--ink-dim); }
+    /* 桃花飘落 · 灵动 */
+    .petal-wrap {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 1;
+      overflow: hidden;
+    }
+    .petal {
+      position: absolute;
+      top: 0;
+      width: 20px;
+      height: 24px;
+      background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 24'%3E%3Cellipse cx='10' cy='12' rx='5' ry='10' fill='%23f5c6cb' fill-opacity='0.95' stroke='%23e8a5b0' stroke-width='0.35' stroke-opacity='0.7' transform='rotate(-20 10 12)'/%3E%3C/svg%3E") no-repeat center / contain;
+      animation: peach-petal-fall 16s ease-in-out infinite;
+      filter: drop-shadow(0 0 4px rgba(245,198,203,0.25));
+    }
+    .petal:nth-child(1) { left: 12%; animation-duration: 18s; animation-delay: 0s; transform: rotate(-15deg); width: 14px; height: 18px; }
+    .petal:nth-child(2) { left: 42%; animation-duration: 22s; animation-delay: -4s; transform: rotate(28deg); width: 22px; height: 26px; opacity: 0.88; }
+    .petal:nth-child(3) { left: 68%; animation-duration: 19s; animation-delay: -9s; transform: rotate(-35deg); width: 16px; height: 20px; }
+    .petal:nth-child(4) { left: 85%; animation-duration: 24s; animation-delay: -2s; transform: rotate(8deg); width: 18px; height: 22px; opacity: 0.92; }
+    .petal:nth-child(5) { left: 25%; animation-duration: 20s; animation-delay: -7s; transform: rotate(12deg); width: 17px; height: 21px; }
+    .petal:nth-child(6) { left: 55%; animation-duration: 21s; animation-delay: -11s; transform: rotate(-22deg); width: 19px; height: 23px; }
+    .blossom {
+      position: absolute;
+      top: 0;
+      width: 32px;
+      height: 32px;
+      background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cg fill='%23f5c6cb' fill-opacity='0.95' stroke='%23e8a5b0' stroke-width='0.4' stroke-opacity='0.6'%3E%3Cellipse cx='16' cy='10' rx='4' ry='7' transform='rotate(0 16 16)'/%3E%3Cellipse cx='16' cy='10' rx='4' ry='7' transform='rotate(72 16 16)'/%3E%3Cellipse cx='16' cy='10' rx='4' ry='7' transform='rotate(144 16 16)'/%3E%3Cellipse cx='16' cy='10' rx='4' ry='7' transform='rotate(216 16 16)'/%3E%3Cellipse cx='16' cy='10' rx='4' ry='7' transform='rotate(288 16 16)'/%3E%3C/g%3E%3Ccircle cx='16' cy='16' r='2.5' fill='%23e8a5b0' fill-opacity='0.9'/%3E%3C/svg%3E") no-repeat center / contain;
+      animation: peach-petal-fall 20s ease-in-out infinite;
+      opacity: 0.92;
+      filter: drop-shadow(0 0 6px rgba(245,198,203,0.3));
+    }
+    .blossom:nth-child(7) { left: 6%; animation-duration: 26s; animation-delay: -1s; width: 26px; height: 26px; }
+    .blossom:nth-child(8) { left: 50%; animation-duration: 28s; animation-delay: -13s; width: 36px; height: 36px; opacity: 0.88; }
+    .blossom:nth-child(9) { left: 78%; animation-duration: 23s; animation-delay: -6s; width: 24px; height: 24px; }
+    @keyframes peach-petal-fall {
+      0% { transform: translateY(-12vh) translateX(0) rotate(0deg) scale(1); opacity: 0.95; }
+      12% { transform: translateY(12vh) translateX(18px) rotate(45deg) scale(1.06); opacity: 1; }
+      28% { transform: translateY(32vh) translateX(-14px) rotate(95deg) scale(0.98); opacity: 0.92; }
+      42% { transform: translateY(52vh) translateX(22px) rotate(150deg) scale(1.04); opacity: 1; }
+      58% { transform: translateY(68vh) translateX(-18px) rotate(210deg) scale(0.97); opacity: 0.9; }
+      72% { transform: translateY(84vh) translateX(12px) rotate(280deg) scale(1.03); opacity: 0.96; }
+      88% { transform: translateY(98vh) translateX(-8px) rotate(330deg) scale(0.99); opacity: 0.93; }
+      100% { transform: translateY(112vh) translateX(4px) rotate(360deg) scale(1); opacity: 0.95; }
+    }
+    /* 竹叶 · 右侧随风飘 */
+    .bamboo-wrap {
+      position: fixed;
+      top: 0;
+      right: 0;
+      width: 42%;
+      height: 100vh;
+      pointer-events: none;
+      z-index: 1;
+      overflow: hidden;
+    }
+    .bamboo-leaf {
+      position: absolute;
+      top: 0;
+      right: 0;
+      width: 12px;
+      height: 36px;
+      background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 40'%3E%3Cpath d='M6 2 Q10 20 6 38 Q2 20 6 2' fill='%235a8a5a' fill-opacity='0.92' stroke='%234a7a4a' stroke-width='0.4' stroke-opacity='0.6'/%3E%3C/svg%3E") no-repeat center / contain;
+      animation: bamboo-wind-drift 14s ease-in-out infinite;
+      filter: drop-shadow(0 0 3px rgba(90,138,90,0.2));
+    }
+    .bamboo-leaf:nth-child(1) { right: 8%; animation-duration: 17s; animation-delay: 0s; width: 10px; height: 30px; }
+    .bamboo-leaf:nth-child(2) { right: 32%; animation-duration: 20s; animation-delay: -3s; width: 14px; height: 42px; opacity: 0.88; }
+    .bamboo-leaf:nth-child(3) { right: 55%; animation-duration: 16s; animation-delay: -7s; width: 11px; height: 34px; }
+    .bamboo-leaf:nth-child(4) { right: 5%; animation-duration: 22s; animation-delay: -2s; width: 9px; height: 28px; opacity: 0.9; }
+    .bamboo-leaf:nth-child(5) { right: 25%; animation-duration: 18s; animation-delay: -5s; width: 13px; height: 38px; }
+    .bamboo-leaf:nth-child(6) { right: 48%; animation-duration: 19s; animation-delay: -10s; width: 12px; height: 36px; }
+    .bamboo-leaf:nth-child(7) { right: 18%; animation-duration: 21s; animation-delay: -4s; width: 10px; height: 32px; opacity: 0.85; }
+    .bamboo-leaf:nth-child(8) { right: 40%; animation-duration: 15s; animation-delay: -8s; width: 11px; height: 33px; }
+    .bamboo-leaf:nth-child(9) { right: 2%; animation-duration: 23s; animation-delay: -6s; width: 8px; height: 26px; }
+    @keyframes bamboo-wind-drift {
+      0% { transform: translate(0, -8vh) rotate(-20deg) scale(1); opacity: 0.9; }
+      18% { transform: translate(-35px, 12vh) rotate(40deg) scale(1.04); opacity: 1; }
+      36% { transform: translate(-72px, 28vh) rotate(95deg) scale(0.97); opacity: 0.88; }
+      52% { transform: translate(-110px, 48vh) rotate(155deg) scale(1.03); opacity: 0.94; }
+      68% { transform: translate(-148px, 68vh) rotate(220deg) scale(0.98); opacity: 0.87; }
+      84% { transform: translate(-185px, 88vh) rotate(295deg) scale(1.02); opacity: 0.91; }
+      100% { transform: translate(-220px, 108vh) rotate(340deg) scale(1); opacity: 0.9; }
+    }
+    /* 曲水流觞 · 右侧 · 大气灵动 */
+    .stream-side {
+      flex-shrink: 0;
+      width: 300px;
+      min-height: 75vh;
+      display: flex;
+      flex-direction: column;
+      align-items: stretch;
+      padding: 2rem 0 3rem;
+    }
+    .stream-panel {
+      flex: 1;
+      min-height: 480px;
+      display: flex;
+      flex-direction: row;
+      align-items: stretch;
+      gap: 0.75rem;
+      background: transparent;
+      position: relative;
+    }
+    .stream-panel .stream-title {
+      font-family: "ZCOOL XiaoWei", "Noto Serif SC", serif;
+      writing-mode: vertical-rl;
+      font-size: 1.35rem;
+      color: var(--accent);
+      letter-spacing: 0.4em;
+      line-height: 2.2;
+      padding-right: 0.25rem;
+      text-shadow: 0 0 30px var(--accent-glow);
+      flex-shrink: 0;
+    }
+    .stream-svg-wrap {
+      flex: 1;
+      min-height: 660px;
+      position: relative;
+    }
+    .stream-svg-wrap svg {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+    /* 曲水水体：古风墨晕 + 水色 + 波光灵动 */
+    .stream-ink-wash {
+      fill: none;
+      stroke: url(#streamGradInk);
+      stroke-width: 88;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      opacity: 0.4;
+      filter: url(#streamBlur);
+    }
+    .stream-band-glow {
+      fill: none;
+      stroke-width: 72;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      opacity: 0.45;
+      filter: blur(18px);
+    }
+    .stream-band {
+      fill: none;
+      stroke-width: 46;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      opacity: 0.78;
+    }
+    /* 水面高光 + 波光粼粼 */
+    .stream-surface {
+      fill: none;
+      stroke: rgba(234, 230, 222, 0.5);
+    }
+    @keyframes stream-shine {
+      0%, 100% { opacity: 0.65; }
+      50% { opacity: 0.9; }
+    }
+    /* 涟漪线：细而慢，古意水纹 */
+    .stream-path {
+      fill: none;
+      stroke: rgba(234, 230, 222, 0.4);
+      stroke-width: 1.2;
+      stroke-linecap: round;
+      stroke-dasharray: 6 28;
+      animation: stream-dash 10s linear infinite;
+    }
+    .stream-path-light {
+      fill: none;
+      stroke: rgba(201, 168, 108, 0.18);
+      stroke-width: 0.8;
+      stroke-linecap: round;
+      stroke-dasharray: 4 36;
+      animation: stream-dash 14s linear infinite reverse;
+    }
+    @keyframes stream-dash {
+      to { stroke-dashoffset: -220; }
+    }
+    /* 水气/烟波：沿水脉的淡墨点 */
+    .stream-mist {
+      fill: rgba(220, 214, 204, 0.35);
+      filter: blur(8px);
+      transform-origin: center;
+      animation: mist-breathe 6s ease-in-out infinite;
+    }
+    .stream-mist:nth-child(1) { animation-delay: 0s; }
+    .stream-mist:nth-child(2) { animation-delay: 2s; }
+    .stream-mist:nth-child(3) { animation-delay: 4s; }
+    .stream-mist:nth-child(4) { animation-delay: 1s; }
+    .stream-mist:nth-child(5) { animation-delay: 3s; }
+    @keyframes mist-breathe {
+      0%, 100% { opacity: 0.2; transform: scale(1); }
+      50% { opacity: 0.45; transform: scale(1.15); }
+    }
+    /* 浮光：沿水漂动的光点 */
+    .stream-glow-dot {
+      transform-origin: center;
+      animation: glow-pulse 3s ease-in-out infinite;
+    }
+    .stream-glow-dot circle {
+      fill: rgba(234, 228, 218, 0.85);
+    }
+    .stream-glow-dot:nth-of-type(1) { animation-delay: 0s; }
+    .stream-glow-dot:nth-of-type(2) { animation-delay: 1.2s; }
+    .stream-glow-dot:nth-of-type(3) { animation-delay: 2.4s; }
+    @keyframes glow-pulse {
+      0%, 100% { opacity: 0.5; transform: scale(0.85); }
+      50% { opacity: 1; transform: scale(1.15); }
+    }
+    .stream-spray {
+      fill: rgba(234, 228, 218, 0.5);
+      transform-origin: center;
+      animation: spray-pulse 3s ease-in-out infinite;
+    }
+    .stream-spray:nth-child(1) { animation-delay: 0s; }
+    .stream-spray:nth-child(2) { animation-delay: 1s; }
+    .stream-spray:nth-child(3) { animation-delay: 2s; }
+    @keyframes spray-pulse {
+      0%, 100% { opacity: 0.2; transform: scale(0.85); }
+      50% { opacity: 0.6; transform: scale(1.08); }
+    }
+    .stream-droplet {
+      fill: rgba(234, 230, 222, 0.65);
+    }
+    /* 觞：沿路径顺流而下 */
+    .stream-cup {
+      fill: var(--accent);
+      fill-opacity: 0.5;
+      stroke: rgba(232, 228, 220, 0.7);
+      stroke-width: 1.2;
+      transform-origin: center;
+      filter: drop-shadow(0 2px 4px rgba(0,0,0,0.2));
+    }
+    .stream-cup {
+      animation: cup-breathe 5s ease-in-out infinite;
+    }
+    .stream-cup:nth-of-type(2) { animation-delay: 1.2s; }
+    .stream-cup:nth-of-type(3) { animation-delay: 2.5s; }
+    .stream-cup:nth-of-type(4) { animation-delay: 3.8s; }
+    @keyframes cup-breathe {
+      0%, 100% { opacity: 0.9; }
+      50% { opacity: 1; }
+    }
+    .stream-side .hint {
+      font-size: 0.72rem;
+      color: var(--accent);
+      letter-spacing: 0.2em;
+      text-align: right;
+      margin-top: 1rem;
+      padding-right: 0.5rem;
+      writing-mode: vertical-rl;
+    }
+    @media (max-width: 1024px) {
+      .stream-side { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="petal-wrap" aria-hidden="true">
+    <span class="petal"></span><span class="petal"></span><span class="petal"></span><span class="petal"></span><span class="petal"></span><span class="petal"></span>
+    <span class="blossom"></span><span class="blossom"></span><span class="blossom"></span>
+  </div>
+  <div class="bamboo-wrap" aria-hidden="true">
+    <span class="bamboo-leaf"></span><span class="bamboo-leaf"></span><span class="bamboo-leaf"></span><span class="bamboo-leaf"></span><span class="bamboo-leaf"></span><span class="bamboo-leaf"></span><span class="bamboo-leaf"></span><span class="bamboo-leaf"></span><span class="bamboo-leaf"></span>
+  </div>
+  <div class="page-layout">
+    <aside class="sidebar" aria-label="导航与筛选">
+      <ul class="sidebar-nav">
+        <li><a href="#" class="active" data-tab="hot">热榜</a></li>
+        <li><a href="#" data-tab="recommend">推荐</a></li>
+        <li><a href="#" data-tab="new">新书</a></li>
+      </ul>
+      <p class="label">状态</p>
+      <div class="sidebar-status">
+        <label><input type="radio" name="status" value="all" checked /> 全部</label>
+        <label><input type="radio" name="status" value="completed" /> 已完结</label>
+        <label><input type="radio" name="status" value="ongoing" /> 进行中</label>
+      </div>
+      <div class="sidebar-list">
+        <p class="list-title">热榜</p>
+        <ul>
+          <li><span class="rank top3">1</span><a href="#">春江花月夜</a><span class="status-tag completed">已完结</span></li>
+          <li><span class="rank top3">2</span><a href="#">长安十二时辰</a><span class="status-tag">进行中</span></li>
+          <li><span class="rank top3">3</span><a href="#">山海经异闻录</a><span class="status-tag">进行中</span></li>
+          <li><span class="rank">4</span><a href="#">墨香铜臭</a><span class="status-tag completed">已完结</span></li>
+          <li><span class="rank">5</span><a href="#">青衫烟雨行</a><span class="status-tag">进行中</span></li>
+          <li><span class="rank">6</span><a href="#">桃花庵下</a><span class="status-tag completed">已完结</span></li>
+          <li><span class="rank">7</span><a href="#">浮生六记新编</a><span class="status-tag">进行中</span></li>
+          <li><span class="rank">8</span><a href="#">云深不知处</a><span class="status-tag">进行中</span></li>
+          <li><span class="rank">9</span><a href="#">锦瑟无端</a><span class="status-tag completed">已完结</span></li>
+          <li><span class="rank">10</span><a href="#">长夜将明</a><span class="status-tag">进行中</span></li>
+        </ul>
+      </div>
+    </aside>
+  <div class="container">
+    <header>
+      <div class="title-wrap"><h1>兰亭序</h1></div>
+      <p class="sub">AI 续写 · 可跳转时间、切换视角、引入新角色 · 承接悬念，自由流淌</p>
+      <div class="auth-row">
+        <span class="auth-status" id="authStatus">未登录</span>
+        <button type="button" class="btn btn-ghost btn-sm" id="btnLogin">登录 SecondMe</button>
+        <button type="button" class="btn btn-ghost btn-sm hidden" id="btnLogout">退出</button>
+      </div>
+    </header>
+
+    <main class="story-canvas" id="storyCanvas" role="log" aria-live="polite"></main>
+
+    <section class="suspense-box" id="suspenseBox" aria-label="上文悬念">
+      <strong>上文悬念：</strong><span id="suspenseText">（暂无）</span>
+    </section>
+
+    <section class="controls" aria-label="续写控制">
+      <div class="control-row">
+        <label>时间</label>
+        <div class="chip-group" id="timeGroup">
+          <label class="chip"><input type="radio" name="time" value="continue" checked /> 顺承</label>
+          <label class="chip"><input type="radio" name="time" value="jump" /> 跳跃</label>
+        </div>
+      </div>
+      <div class="control-row">
+        <label>视角</label>
+        <div class="chip-group" id="viewGroup">
+          <label class="chip"><input type="radio" name="view" value="keep" checked /> 保持</label>
+          <label class="chip"><input type="radio" name="view" value="switch" /> 切换</label>
+        </div>
+      </div>
+      <div class="control-row">
+        <label>新角色</label>
+        <input type="text" class="new-role-input" id="newRoleInput" placeholder="可选，输入名字" maxlength="20" />
+      </div>
+      <div class="control-row">
+        <label>风格</label>
+        <div class="chip-group" id="styleGroup">
+          <label class="chip"><input type="radio" name="style" value="any" checked /> 任意</label>
+          <label class="chip"><input type="radio" name="style" value="sci-fi" /> 科幻</label>
+          <label class="chip"><input type="radio" name="style" value="warm" /> 温情</label>
+          <label class="chip"><input type="radio" name="style" value="mystery" /> 悬疑</label>
+          <label class="chip"><input type="radio" name="style" value="philosophy" /> 哲思</label>
+        </div>
+      </div>
+      <div class="action-row">
+        <button type="button" class="btn btn-primary" id="btnContinue">续写一段</button>
+        <button type="button" class="btn btn-ghost" id="btnReset">重新开始</button>
+        <span class="status" id="status"></span>
+      </div>
+    </section>
+  </div>
+  <aside class="stream-side" aria-hidden="true">
+    <div class="stream-panel">
+      <p class="stream-title">曲水流觞 · 文随兴至</p>
+      <div class="stream-svg-wrap">
+        <svg viewBox="0 0 180 560" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <filter id="streamBlur" x="-20%" y="-20%" width="140%" height="140%">
+              <feGaussianBlur in="SourceGraphic" stdDeviation="12"/>
+              <feComponentTransfer><feFuncA type="linear" slope="0.7"/></feComponentTransfer>
+            </filter>
+            <!-- 墨晕：淡墨渲染，古画水气 -->
+            <linearGradient id="streamGradInk" x1="0%" y1="0%" x2="0%" y2="100%">
+              <stop offset="0%" stop-color="#d8d4cc" stop-opacity="0.22"/>
+              <stop offset="40%" stop-color="#d0d8d4" stop-opacity="0.3"/>
+              <stop offset="100%" stop-color="#c8d0cc" stop-opacity="0.18"/>
+            </linearGradient>
+            <!-- 光晕：暖纸 + 淡青 -->
+            <linearGradient id="streamGradGlow" x1="0%" y1="0%" x2="0%" y2="100%">
+              <stop offset="0%" stop-color="#ece6dc" stop-opacity="0.28"/>
+              <stop offset="50%" stop-color="#e0dcd4" stop-opacity="0.35"/>
+              <stop offset="100%" stop-color="#d4dcd8" stop-opacity="0.2"/>
+            </linearGradient>
+            <!-- 水体主色：纸白 + 墨韵 + 远水一点青 -->
+            <linearGradient id="streamGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+              <stop offset="0%" stop-color="#f2eee6" stop-opacity="0.48"/>
+              <stop offset="22%" stop-color="#eae6de" stop-opacity="0.68"/>
+              <stop offset="55%" stop-color="#e2e2dc" stop-opacity="0.62"/>
+              <stop offset="78%" stop-color="#dce0dc" stop-opacity="0.5"/>
+              <stop offset="100%" stop-color="#d4d8d4" stop-opacity="0.38"/>
+            </linearGradient>
+            <path id="streamMotionPath" d="M95 18 C55 58 130 110 75 172 C28 228 112 282 88 342 C68 388 98 418 92 448 C78 488 108 520 92 552"/>
+            <ellipse id="cupShape" cx="0" cy="0" rx="7" ry="4.5"/>
+          </defs>
+          <!-- 古风：淡墨晕（最底） -->
+          <use href="#streamMotionPath" class="stream-ink-wash"/>
+          <!-- 光晕 -->
+          <use href="#streamMotionPath" class="stream-band-glow"/>
+          <!-- 主水体 -->
+          <use href="#streamMotionPath" class="stream-band"/>
+          <!-- 水面高光 + 波光 -->
+          <use href="#streamMotionPath" class="stream-surface"/>
+          <!-- 涟漪线 -->
+          <use href="#streamMotionPath" class="stream-path"/>
+          <use href="#streamMotionPath" class="stream-path-light"/>
+          <!-- 水气/烟波 -->
+          <ellipse class="stream-mist" cx="90" cy="100" rx="24" ry="12"/>
+          <ellipse class="stream-mist" cx="82" cy="260" rx="20" ry="10"/>
+          <ellipse class="stream-mist" cx="96" cy="400" rx="22" ry="11"/>
+          <ellipse class="stream-mist" cx="78" cy="180" rx="18" ry="9"/>
+          <ellipse class="stream-mist" cx="94" cy="340" rx="20" ry="10"/>
+          <!-- 浮光掠影 -->
+          <g class="stream-glow-dot">
+            <circle r="2">
+              <animateMotion dur="18s" repeatCount="indefinite" path="M95 18 C55 58 130 110 75 172 C28 228 112 282 88 342 C68 388 98 418 92 448 C78 488 108 520 92 552"/>
+            </circle>
+          </g>
+          <g class="stream-glow-dot">
+            <circle r="1.8">
+              <animateMotion dur="22s" repeatCount="indefinite" begin="-7s" path="M95 18 C55 58 130 110 75 172 C28 228 112 282 88 342 C68 388 98 418 92 448 C78 488 108 520 92 552"/>
+            </circle>
+          </g>
+          <g class="stream-glow-dot">
+            <circle r="2">
+              <animateMotion dur="20s" repeatCount="indefinite" begin="-14s" path="M95 18 C55 58 130 110 75 172 C28 228 112 282 88 342 C68 388 98 418 92 448 C78 488 108 520 92 552"/>
+            </circle>
+          </g>
+          <!-- 水雾点缀 -->
+          <circle class="stream-spray" cx="92" cy="120" r="2"/>
+          <circle class="stream-spray" cx="88" cy="320" r="1.8"/>
+          <circle class="stream-spray" cx="94" cy="480" r="2"/>
+          <!-- 沿径下落水珠 -->
+          <g class="stream-droplet">
+            <circle r="2.2">
+              <animateMotion dur="2.2s" repeatCount="indefinite" path="M95 18 C55 58 130 110 75 172 C28 228 112 282 88 342 C68 388 98 418 92 448 C78 488 108 520 92 552"/>
+            </circle>
+          </g>
+          <g class="stream-droplet">
+            <circle r="1.8">
+              <animateMotion dur="2.5s" repeatCount="indefinite" begin="-0.5s" path="M95 18 C55 58 130 110 75 172 C28 228 112 282 88 342 C68 388 98 418 92 448 C78 488 108 520 92 552"/>
+            </circle>
+          </g>
+          <g class="stream-droplet">
+            <circle r="2">
+              <animateMotion dur="2s" repeatCount="indefinite" begin="-1s" path="M95 18 C55 58 130 110 75 172 C28 228 112 282 88 342 C68 388 98 418 92 448 C78 488 108 520 92 552"/>
+            </circle>
+          </g>
+          <g class="stream-droplet">
+            <circle r="2.2">
+              <animateMotion dur="2.3s" repeatCount="indefinite" begin="-1.5s" path="M95 18 C55 58 130 110 75 172 C28 228 112 282 88 342 C68 388 98 418 92 448 C78 488 108 520 92 552"/>
+            </circle>
+          </g>
+          <g class="stream-droplet">
+            <circle r="1.6">
+              <animateMotion dur="2.6s" repeatCount="indefinite" begin="-2.2s" path="M95 18 C55 58 130 110 75 172 C28 228 112 282 88 342 C68 388 98 418 92 448 C78 488 108 520 92 552"/>
+            </circle>
+          </g>
+          <!-- 觞顺流而下 -->
+          <g class="stream-cup">
+            <use href="#cupShape">
+              <animateMotion dur="24s" repeatCount="indefinite" keyPoints="0;1" keyTimes="0;1" path="M95 18 C55 58 130 110 75 172 C28 228 112 282 88 342 C68 388 98 418 92 448 C78 488 108 520 92 552"/>
+            </use>
+          </g>
+          <g class="stream-cup">
+            <use href="#cupShape">
+              <animateMotion dur="28s" repeatCount="indefinite" keyPoints="0;1" keyTimes="0;1" begin="-6s" path="M95 18 C55 58 130 110 75 172 C28 228 112 282 88 342 C68 388 98 418 92 448 C78 488 108 520 92 552"/>
+            </use>
+          </g>
+          <g class="stream-cup">
+            <use href="#cupShape">
+              <animateMotion dur="26s" repeatCount="indefinite" keyPoints="0;1" keyTimes="0;1" begin="-12s" path="M95 18 C55 58 130 110 75 172 C28 228 112 282 88 342 C68 388 98 418 92 448 C78 488 108 520 92 552"/>
+            </use>
+          </g>
+          <g class="stream-cup">
+            <use href="#cupShape">
+              <animateMotion dur="30s" repeatCount="indefinite" keyPoints="0;1" keyTimes="0;1" begin="-18s" path="M95 18 C55 58 130 110 75 172 C28 228 112 282 88 342 C68 388 98 418 92 448 C78 488 108 520 92 552"/>
+            </use>
+          </g>
+        </svg>
+      </div>
+      <p class="hint">群贤毕至，少长咸集。此地有崇山峻岭，茂林修竹；又有清流激湍，映带左右，引以为流觞曲水，列坐其次。虽无丝竹管弦之盛，一觞一咏，亦足以畅叙幽情。夫人之相与，俯仰一世，或取诸怀抱，晤言一室之内；或因寄所托，放浪形骸之外。虽趣舍万殊，静躁不同，当其欣于所遇，暂得于己，快然自足，不知老之将至。及其所之既倦，情随事迁，感慨系之矣。向之所欣，俯仰之间，已为陈迹，犹不能不以之兴怀。况修短随化，终期于尽。古人云："死生亦大矣。"岂不痛哉！
+      </p>
+    </div>
+  </aside>
+  </div>
+  <script src="app.js"></script>
+</body>
+</html>
