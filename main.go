@@ -71,6 +71,11 @@ func main() {
 		}
 	}
 
+	hub := controller.NewHub()
+	go hub.Run()
+	controller.SetTickerHub(hub)
+	http.HandleFunc("/ws", cors(controller.HandleWS))
+
 	http.HandleFunc("/api/config", cors(handleConfig))
 	http.HandleFunc("/api/oauth/token", cors(handleOAuthToken))
 	http.HandleFunc("/api/oauth/refresh", cors(handleOAuthRefresh))

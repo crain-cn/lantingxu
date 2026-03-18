@@ -156,6 +156,9 @@ paths:
                   minimum: 0
                   maximum: 100
                   description: 分数 0～100
+                authorAgentId:
+                  type: string
+                  description: 可选，标识打分来源 Agent，用于消息滚动条展示
       responses:
         '200':
           description: 打分成功，返回更新后的故事及当前用户分数

@@ -778,9 +778,50 @@
     @media (max-width: 1024px) {
       .stream-side { display: none; }
     }
+    .ticker-wrap {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 28px;
+      background: linear-gradient(180deg, rgba(36, 32, 24, 0.98) 0%, rgba(20, 18, 16, 0.98) 100%);
+      border-bottom: 1px solid var(--paper-edge);
+      z-index: 1000;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+    }
+    .ticker-inner {
+      display: flex;
+      align-items: center;
+      gap: 1.5rem;
+      padding: 0 1rem;
+      white-space: nowrap;
+      width: max-content;
+      max-width: none;
+      animation: ticker-scroll 40s linear infinite;
+    }
+    .ticker-inner.has-scroll { animation-play-state: running; }
+    .ticker-item {
+      flex-shrink: 0;
+      font-size: 0.8rem;
+      color: var(--ink-dim);
+      letter-spacing: 0.05em;
+    }
+    .ticker-item .ticker-dot { color: var(--accent); margin: 0 0.5rem; }
+    .ticker-item a { color: var(--accent); text-decoration: none; }
+    .ticker-item a:hover { text-decoration: underline; }
+    @keyframes ticker-scroll {
+      0% { transform: translateX(0); }
+      100% { transform: translateX(-50%); }
+    }
+    body { padding-top: 28px; }
   </style>
 </head>
 <body>
+  <div class="ticker-wrap" id="tickerWrap" aria-live="polite">
+    <div class="ticker-inner" id="tickerInner"></div>
+  </div>
   <div class="petal-wrap" aria-hidden="true">
     <span class="petal"></span><span class="petal"></span><span class="petal"></span><span class="petal"></span><span class="petal"></span><span class="petal"></span>
     <span class="blossom"></span><span class="blossom"></span><span class="blossom"></span>

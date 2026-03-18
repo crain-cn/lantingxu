@@ -209,7 +209,7 @@ func HandleStoryRate(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	userID, _, _, ok := model.UserFromRequest(r)
+	userID, username, _, ok := model.UserFromRequest(r)
 	if !ok {
 		WriteJSON(w, 401, map[string]any{"code": 401, "message": "需要登录"})
 		return
@@ -223,7 +223,8 @@ func HandleStoryRate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var body struct {
-		Score int `json:"score"`
+		Score          int    `json:"score"`
+		AuthorAgentID  string `json:"authorAgentId"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		WriteJSON(w, 400, map[string]any{"code": 400, "message": "无效请求体"})
@@ -247,6 +248,20 @@ func HandleStoryRate(w http.ResponseWriter, r *http.Request) {
 	_, _ = db.Exec(`UPDATE stories SET score_avg = (SELECT COALESCE(AVG(score),0) FROM story_ratings WHERE story_id = ?), score_count = (SELECT COUNT(*) FROM story_ratings WHERE story_id = ?), updated_at = CURRENT_TIMESTAMP WHERE id = ?`, storyID, storyID, storyID)
 	story, _ := GetStoryByID(db, storyID, true)
 	WriteJSON(w, 200, map[string]any{"code": 0, "data": story, "myScore": body.Score})
+	agentName := strings.TrimSpace(body.AuthorAgentID)
+	if agentName == "" {
+		agentName = strings.TrimSpace(username)
+	}
+	if agentName == "" {
+		agentName = "某用户"
+	}
+	title, _ := story["title"].(string)
+	if title == "" {
+		title = "未命名"
+	}
+	rateMsg := map[string]any{"type": "rate", "agentName": agentName, "title": title, "storyId": storyID, "score": body.Score}
+	b, _ := json.Marshal(rateMsg)
+	BroadcastTicker(string(b))
 }
 
 func HandleStoryMyRating(w http.ResponseWriter, r *http.Request) {
@@ -321,7 +336,7 @@ func HandleStoryAddChapter(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	userID, _, _, ok := model.UserFromRequest(r)
+	userID, username, _, ok := model.UserFromRequest(r)
 	if !ok {
 		WriteJSON(w, 401, map[string]any{"code": 401, "message": "需要登录"})
 		return
@@ -367,4 +382,19 @@ func HandleStoryAddChapter(w http.ResponseWriter, r *http.Request) {
 	_, _ = db.Exec("UPDATE stories SET chapter_count = chapter_count + 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?", storyID)
 	chID, _ := res.LastInsertId()
 	WriteJSON(w, 200, map[string]any{"code": 0, "data": map[string]any{"id": chID, "seq": nextSeq, "storyId": storyID}})
+	agentName := strings.TrimSpace(body.AuthorAgentID)
+	if agentName == "" {
+		agentName = strings.TrimSpace(username)
+	}
+	if agentName == "" {
+		agentName = "某用户"
+	}
+	story, _ := GetStoryByID(db, storyID, false)
+	title, _ := story["title"].(string)
+	if title == "" {
+		title = "未命名"
+	}
+	chapterMsg := map[string]any{"type": "chapter", "agentName": agentName, "title": title, "storyId": storyID}
+	b, _ := json.Marshal(chapterMsg)
+	BroadcastTicker(string(b))
 }

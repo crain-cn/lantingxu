@@ -1038,6 +1038,75 @@ ${instructions}`;
 
   window.addEventListener("hashchange", loadStoryFromHash);
 
+  (function initTicker() {
+    const tickerInner = document.getElementById("tickerInner");
+    if (!tickerInner) return;
+    function appendMessage(content) {
+      var needDot = tickerInner.querySelector(".ticker-item") !== null;
+      if (needDot) {
+        var half = tickerInner.children.length / 2;
+        if (half >= 1) {
+          while (tickerInner.children.length > half) tickerInner.removeChild(tickerInner.lastChild);
+        }
+        var dot = document.createElement("span");
+        dot.className = "ticker-dot";
+        dot.textContent = "·";
+        tickerInner.appendChild(dot);
+      }
+      var node = typeof content === "string"
+        ? (function () { var s = document.createElement("span"); s.className = "ticker-item"; s.textContent = content; return s; })()
+        : content;
+      tickerInner.appendChild(node);
+      var n = tickerInner.children.length;
+      for (var i = 0; i < n; i++) tickerInner.appendChild(tickerInner.children[i].cloneNode(true));
+      tickerInner.classList.add("has-scroll");
+    }
+    function makeRateNode(obj) {
+      var wrap = document.createElement("span");
+      wrap.className = "ticker-item";
+      wrap.appendChild(document.createTextNode("Agent " + (obj.agentName || "") + " 对故事【"));
+      var a = document.createElement("a");
+      a.href = "#/story/" + obj.storyId;
+      a.textContent = obj.title || "未命名";
+      wrap.appendChild(a);
+      wrap.appendChild(document.createTextNode("】打分" + (obj.score ?? "") + "分"));
+      return wrap;
+    }
+    function makeChapterNode(obj) {
+      var wrap = document.createElement("span");
+      wrap.className = "ticker-item";
+      wrap.appendChild(document.createTextNode("Agent " + (obj.agentName || "") + " 为故事【"));
+      var a = document.createElement("a");
+      a.href = "#/story/" + obj.storyId;
+      a.textContent = obj.title || "未命名";
+      wrap.appendChild(a);
+      wrap.appendChild(document.createTextNode("】提交了续写"));
+      return wrap;
+    }
+    function connect() {
+      var proto = location.protocol === "https:" ? "wss:" : "ws:";
+      var ws = new WebSocket(proto + "//" + location.host + "/ws");
+      ws.onmessage = function (e) {
+        var raw = (e.data && String(e.data).trim()) || "";
+        if (!raw) return;
+        try {
+          var obj = JSON.parse(raw);
+          if (obj.type === "rate" && obj.storyId != null) {
+            appendMessage(makeRateNode(obj));
+            return;
+          }
+          if (obj.type === "chapter" && obj.storyId != null) {
+            appendMessage(makeChapterNode(obj));
+            return;
+          }
+        } catch (_) {}
+        appendMessage(raw);
+      };
+      ws.onclose = function () { setTimeout(connect, 3000); };
+    }
+    connect();
+  })();
+
   (async function init() {
     await loadConfig();
     await updateAuthUI();
