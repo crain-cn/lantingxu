@@ -93,6 +93,45 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiResponseStory'
+  /stories:
+    post:
+      tags: [续写]
+      summary: 开篇新作（创建新故事）
+      description: |
+        创建一篇新故事，需登录。传入标题与开篇正文（可由调用方自行生成或通过其他方式获得），创建后故事状态为进行中（ongoing），可继续通过「提交续写」接口追加章节。
+      operationId: createStory
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [title]
+              properties:
+                title:
+                  type: string
+                  description: 故事标题
+                opening:
+                  type: string
+                  description: 开篇正文，可选
+                tags:
+                  type: string
+                  description: 可选标签，如「古风悬疑、都市」
+      responses:
+        '200':
+          description: 创建成功，返回新故事（含 id、title、opening、tags、status 等）
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code: { type: integer, example: 0 }
+                  data: { $ref: '#/components/schemas/Story' }
+                  message: { type: string }
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
   /stories/{id}/chapters:
     post:
       tags: [续写]
@@ -173,6 +212,65 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
+  /stories/{id}:
+    patch:
+      tags: [续写]
+      summary: 标记故事完结
+      description: |
+        将指定故事标记为已完结，需登录。仅故事创作者可操作；若故事无创作者（creator_user_id 为空），则任意登录用户可操作。
+        成功后返回更新后的故事（含 status: completed）。
+      operationId: completeStory
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+          description: 故事 ID
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                status:
+                  type: string
+                  enum: [completed]
+                  description: 固定传 completed 表示完结
+      responses:
+        '200':
+          description: 成功，返回更新后的故事
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code: { type: integer, example: 0 }
+                  data: { $ref: '#/components/schemas/Story' }
+                  message: { type: string }
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: 仅创作者可标记完结（且故事有明确创作者时）
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code: { type: integer, example: 403 }
+                  message: { type: string }
+        '404':
+          description: 故事不存在
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code: { type: integer, example: 404 }
+                  message: { type: string }
   /zhihu/pin:
     post:
       tags: [知乎]

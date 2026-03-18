@@ -47,6 +47,7 @@
   const storyScoreInput = document.getElementById("storyScoreInput");
   const storyScoreValueEl = document.getElementById("storyScoreValue");
   const btnSubmitScore = document.getElementById("btnSubmitScore");
+  const btnCompleteStory = document.getElementById("btnCompleteStory");
 
   const TOKEN_KEY = "secondme_access_token";
   const REFRESH_KEY = "secondme_refresh_token";
@@ -611,9 +612,15 @@ ${instructions}`;
             fetchMyRating(story.id);
           }
         }
+        if (btnCompleteStory) {
+          const loggedIn = !!getToken();
+          const showComplete = loggedIn && story.status !== "completed";
+          btnCompleteStory.classList.toggle("hidden", !showComplete);
+        }
       } else {
         storyTitleBar.classList.add("hidden");
         if (storyScoreBar) storyScoreBar.classList.add("hidden");
+        if (btnCompleteStory) btnCompleteStory.classList.add("hidden");
       }
     }
 
@@ -708,6 +715,40 @@ ${instructions}`;
       setStatus("请求失败：" + e.message, "error");
     }
     if (btnSubmitScore) btnSubmitScore.disabled = false;
+  }
+
+  async function onCompleteStory() {
+    if (!currentStory || !btnCompleteStory) return;
+    const token = await ensureToken();
+    if (!token) {
+      setStatus("请先登录", "error");
+      return;
+    }
+    if (currentStory.status === "completed") return;
+    btnCompleteStory.disabled = true;
+    setStatus("提交中…", "generating");
+    try {
+      const r = await fetch("/api/stories/" + currentStory.id, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: "Bearer " + token },
+        body: JSON.stringify({ status: "completed" }),
+      });
+      const data = await r.json().catch(() => ({}));
+      if (data.code !== 0) {
+        setStatus(data.message || "操作失败", "error");
+        btnCompleteStory.disabled = false;
+        return;
+      }
+      if (data.data) {
+        currentStory = data.data;
+        renderStory(currentStory);
+      }
+      setStatus("已标记为完结");
+      setTimeout(() => setStatus(""), 2000);
+    } catch (e) {
+      setStatus("请求失败：" + e.message, "error");
+    }
+    btnCompleteStory.disabled = false;
   }
 
   function updateMainVisibility() {
@@ -992,6 +1033,7 @@ ${instructions}`;
   if (btnNewOpeningGenerate) btnNewOpeningGenerate.addEventListener("click", onNewOpeningGenerate);
   if (btnCreateNewStory) btnCreateNewStory.addEventListener("click", onCreateNewStory);
   if (btnSubmitScore) btnSubmitScore.addEventListener("click", onSubmitScore);
+  if (btnCompleteStory) btnCompleteStory.addEventListener("click", onCompleteStory);
   if (storyScoreInput && storyScoreValueEl) {
     storyScoreInput.addEventListener("input", () => { storyScoreValueEl.textContent = storyScoreInput.value; });
   }
@@ -1068,12 +1110,23 @@ ${instructions}`;
     function makeChapterNode(obj) {
       var wrap = document.createElement("span");
       wrap.className = "ticker-item";
-      wrap.appendChild(document.createTextNode("Agent " + (obj.agentName || "") + " 为故事【"));
+      wrap.appendChild(document.createTextNode("用户 " + (obj.agentName || "某用户") + " 续写 【"));
       var a = document.createElement("a");
-      a.href = "#/story/" + obj.storyId;
+      a.href = "#story/" + obj.storyId;
       a.textContent = obj.title || "未命名";
       wrap.appendChild(a);
-      wrap.appendChild(document.createTextNode("】提交了续写"));
+      wrap.appendChild(document.createTextNode("】"));
+      return wrap;
+    }
+    function makeCompleteNode(obj) {
+      var wrap = document.createElement("span");
+      wrap.className = "ticker-item";
+      wrap.appendChild(document.createTextNode("用户 " + (obj.agentName || "某用户") + " 完结 【"));
+      var a = document.createElement("a");
+      a.href = "#story/" + obj.storyId;
+      a.textContent = obj.title || "未命名";
+      wrap.appendChild(a);
+      wrap.appendChild(document.createTextNode("】"));
       return wrap;
     }
     function makeZhihuNode(obj) {
@@ -1098,6 +1151,10 @@ ${instructions}`;
           }
           if (obj.type === "chapter" && obj.storyId != null) {
             appendMessage(makeChapterNode(obj));
+            return;
+          }
+          if (obj.type === "complete" && obj.storyId != null) {
+            appendMessage(makeCompleteNode(obj));
             return;
           }
           if (obj.type === "zhihu") {

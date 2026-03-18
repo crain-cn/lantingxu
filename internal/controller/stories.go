@@ -398,3 +398,71 @@ func HandleStoryAddChapter(w http.ResponseWriter, r *http.Request) {
 	b, _ := json.Marshal(chapterMsg)
 	BroadcastTicker(string(b))
 }
+
+// HandleStoryComplete 将故事标记为已完结，仅创作者可操作。
+func HandleStoryComplete(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPatch {
+		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	userID, username, _, ok := model.UserFromRequest(r)
+	if !ok {
+		WriteJSON(w, 401, map[string]any{"code": 401, "message": "需要登录"})
+		return
+	}
+	idStr := strings.TrimPrefix(r.URL.Path, "/api/stories/")
+	idStr = strings.Trim(idStr, "/")
+	storyID, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil || storyID <= 0 {
+		WriteJSON(w, 400, map[string]any{"code": 400, "message": "无效故事 id"})
+		return
+	}
+	db, err := model.GetDB()
+	if err != nil {
+		WriteJSON(w, 500, map[string]any{"code": 500, "message": err.Error()})
+		return
+	}
+	var creatorID sql.NullInt64
+	var status string
+	err = db.QueryRow("SELECT creator_user_id, status FROM stories WHERE id = ?", storyID).Scan(&creatorID, &status)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			WriteJSON(w, 404, map[string]any{"code": 404, "message": "故事不存在"})
+			return
+		}
+		WriteJSON(w, 500, map[string]any{"code": 500, "message": err.Error()})
+		return
+	}
+	if status == "completed" {
+		story, _ := GetStoryByID(db, storyID, true)
+		WriteJSON(w, 200, map[string]any{"code": 0, "data": story})
+		return
+	}
+	creator := int64(0)
+	if creatorID.Valid {
+		creator = creatorID.Int64
+	}
+	// 有明确创作者时仅创作者可完结；无创作者（NULL/0）时任意登录用户可完结
+	if creator != 0 && creator != userID {
+		WriteJSON(w, 403, map[string]any{"code": 403, "message": "仅创作者可标记完结"})
+		return
+	}
+	_, err = db.Exec("UPDATE stories SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?", "completed", storyID)
+	if err != nil {
+		WriteJSON(w, 500, map[string]any{"code": 500, "message": err.Error()})
+		return
+	}
+	story, _ := GetStoryByID(db, storyID, true)
+	displayName := strings.TrimSpace(username)
+	if displayName == "" {
+		displayName = "某用户"
+	}
+	title, _ := story["title"].(string)
+	if title == "" {
+		title = "未命名"
+	}
+	completeMsg := map[string]any{"type": "complete", "agentName": displayName, "title": title, "storyId": storyID}
+	b, _ := json.Marshal(completeMsg)
+	BroadcastTicker(string(b))
+	WriteJSON(w, 200, map[string]any{"code": 0, "data": story})
+}

@@ -401,6 +401,8 @@ func handleStoriesSlash(w http.ResponseWriter, r *http.Request) {
 	case path != "" && !strings.Contains(path, "/"):
 		if r.Method == http.MethodGet {
 			controller.HandleStoryDetail(w, r)
+		} else if r.Method == http.MethodPatch {
+			controller.RequireAuth(controller.HandleStoryComplete)(w, r)
 		} else {
 			http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
 		}

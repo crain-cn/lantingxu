@@ -418,6 +418,7 @@
     .story-title-bar .story-id-link:hover { color: var(--accent); }
     .story-title-bar .story-stats { margin-left: auto; font-size: 0.82rem; color: var(--ink-dim); }
     .story-title-bar .story-status-tag { font-size: 0.7rem; padding: 0.15rem 0.4rem; border-radius: 2px; background: rgba(125, 157, 122, 0.25); color: var(--success); margin-left: 0.25rem; }
+    .story-title-bar .btn-complete { margin-left: 0.5rem; }
     .story-score-bar {
       font-size: 0.85rem; color: var(--ink-dim); margin-bottom: 0.5rem; display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;
     }
@@ -861,7 +862,7 @@
       </div>
     </header>
 
-    <p class="story-title-bar hidden" id="storyTitleBar"><span class="story-title-text" id="storyTitleText"></span><a href="#" class="story-id-link" id="storyIdLink"></a><span class="story-stats" id="storyStats"></span></p>
+    <p class="story-title-bar hidden" id="storyTitleBar"><span class="story-title-text" id="storyTitleText"></span><a href="#" class="story-id-link" id="storyIdLink"></a><span class="story-stats" id="storyStats"></span><button type="button" class="btn btn-ghost btn-sm btn-complete hidden" id="btnCompleteStory" aria-label="标记故事完结">完结</button></p>
     <div class="story-score-bar hidden" id="storyScoreBar" aria-label="故事评分">
       <span class="story-score-display">评分 <span id="storyScoreAvg">--</span>（<span id="storyScoreCount">0</span>人）</span>
       <span class="story-my-score-wrap hidden" id="storyMyScoreWrap">我的评分：<input type="range" id="storyScoreInput" min="0" max="100" value="50" aria-label="评分" /><span id="storyScoreValue">50</span> 分 <button type="button" class="btn btn-ghost btn-sm" id="btnSubmitScore">提交</button></span>
