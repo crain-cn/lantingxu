@@ -73,3 +73,38 @@ func HandleLogin(w http.ResponseWriter, r *http.Request) {
 	token, _ := model.IssueJWT(id, body.Username, role)
 	WriteJSON(w, 200, map[string]any{"code": 0, "userId": id, "username": body.Username, "token": token})
 }
+
+// HandleJWTToken 使用 appId + appSecret 换取 JWT，供 OpenAPI 等外部调用方使用。
+func HandleJWTToken(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	var body struct {
+		AppId     string `json:"appId"`
+		AppSecret string `json:"appSecret"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		WriteJSON(w, 400, map[string]any{"code": 400, "message": "无效请求体"})
+		return
+	}
+	if body.AppId == "" || body.AppSecret == "" {
+		WriteJSON(w, 400, map[string]any{"code": 400, "message": "缺少 appId 或 appSecret"})
+		return
+	}
+	if !model.ValidateAppCredentials(body.AppId, body.AppSecret) {
+		WriteJSON(w, 401, map[string]any{"code": 401, "message": "appId 或 appSecret 错误"})
+		return
+	}
+	token, err := model.IssueJWTForApp(body.AppId)
+	if err != nil {
+		WriteJSON(w, 500, map[string]any{"code": 500, "message": err.Error()})
+		return
+	}
+	WriteJSON(w, 200, map[string]any{
+		"code":         0,
+		"accessToken":  token,
+		"tokenType":    "Bearer",
+		"expiresIn":    7 * 24 * 3600,
+	})
+}

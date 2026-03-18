@@ -110,13 +110,39 @@ func migrate(d *sql.DB) error {
 		PRIMARY KEY (user_id, story_id)
 	);
 	CREATE INDEX IF NOT EXISTS idx_ratings_story ON story_ratings(story_id);
+	CREATE TABLE IF NOT EXISTS api_apps (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		app_id TEXT UNIQUE NOT NULL,
+		app_secret_hash TEXT NOT NULL,
+		name TEXT,
+		created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+	);
 	`
 	if _, err := d.Exec(schema); err != nil {
 		return err
 	}
 	_, _ = d.Exec("ALTER TABLE stories ADD COLUMN score_avg REAL")
 	_, _ = d.Exec("ALTER TABLE stories ADD COLUMN score_count INTEGER DEFAULT 0")
+	if err := seedAPIApps(d); err != nil {
+		return err
+	}
 	return seedStories(d)
+}
+
+func seedAPIApps(d *sql.DB) error {
+	var n int
+	if err := d.QueryRow("SELECT COUNT(*) FROM api_apps").Scan(&n); err != nil || n > 0 {
+		return err
+	}
+	secret := os.Getenv("DEFAULT_APP_SECRET")
+	if secret == "" {
+		secret = "default-secret-change-me"
+	}
+	_, err := d.Exec(
+		"INSERT INTO api_apps (app_id, app_secret_hash, name) VALUES (?, ?, ?)",
+		"default", "a67968bed905603a492690005c09f632", "默认应用",
+	)
+	return err
 }
 
 func seedStories(d *sql.DB) error {

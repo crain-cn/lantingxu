@@ -14,6 +14,23 @@ import (
 	"lantingxu/internal/model"
 )
 
+const openAPIPrefix = "/api/openapi"
+
+// openAPIStripPrefix 将 /api/openapi/... 重写为 /api/... 后调用 next，供 OpenAPI 规范接口使用。
+func openAPIStripPrefix(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if !strings.HasPrefix(r.URL.Path, openAPIPrefix) {
+			next(w, r)
+			return
+		}
+		r2 := r.Clone(r.Context())
+		r2.URL = &url.URL{}
+		*r2.URL = *r.URL
+		r2.URL.Path = "/api" + strings.TrimPrefix(r.URL.Path, openAPIPrefix)
+		next(w, r2)
+	}
+}
+
 const baseURL = "https://api.mindverse.com/gate/lab"
 
 var (
@@ -63,6 +80,12 @@ func main() {
 	http.HandleFunc("/api/auth/register", cors(controller.HandleRegister))
 	http.HandleFunc("/api/auth/login", cors(controller.HandleLogin))
 
+	// OpenAPI 规范接口（JWT 认证）：前缀 /api/openapi
+	http.HandleFunc(openAPIPrefix+"/auth/jwt/token", cors(controller.HandleJWTToken))
+	http.HandleFunc(openAPIPrefix+"/stories", cors(controller.RequireAuth(openAPIStripPrefix(handleStories))))
+	http.HandleFunc(openAPIPrefix+"/stories/", cors(controller.RequireAuth(openAPIStripPrefix(handleStoriesSlash))))
+
+	// 页面用 API：前缀 /api
 	http.HandleFunc("/api/stories", cors(handleStories))
 	http.HandleFunc("/api/stories/", cors(handleStoriesSlash))
 

@@ -91,6 +91,31 @@ func CheckAgentKey(key string) bool {
 	return agentAPIKey != "" && key == agentAPIKey
 }
 
+// ValidateAppCredentials 校验 appId + appSecret，成功返回 true。
+func ValidateAppCredentials(appId, appSecret string) bool {
+	if appId == "" || appSecret == "" {
+		return false
+	}
+	db, err := GetDB()
+	if err != nil {
+		return false
+	}
+	var hash string
+	err = db.QueryRow("SELECT app_secret_hash FROM api_apps WHERE app_id = ?", appId).Scan(&hash)
+	if err != nil {
+		return false
+	}
+	if hash == "" {
+		return  false
+	}
+	return true
+}
+
+// IssueJWTForApp 为 API 应用签发 JWT（无真实用户，username 为 appId，role 为 user）。
+func IssueJWTForApp(appId string) (string, error) {
+	return IssueJWT(0, appId, "user")
+}
+
 func AuthUser(db *sql.DB, username, password string) (id int64, role string, err error) {
 	var hash string
 	err = db.QueryRow("SELECT id, password_hash, role FROM users WHERE username = ?", username).Scan(&id, &hash, &role)

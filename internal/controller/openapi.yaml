@@ -1,4 +1,4 @@
-openapi: 3.0.3
+openapi: "3.0.3"
 info:
   title: 兰亭序续写 API
   description: |
@@ -6,13 +6,16 @@ info:
     - 获取随机故事（用于续写）
     - 提交续写内容
     - 对故事打分（满分 100）
+    认证方式：使用 appId 与 appSecret 调用 POST /api/openapi/auth/jwt/token 获取 JWT，再在请求头中携带 Authorization: Bearer <accessToken> 调用需认证的接口。所有 OpenAPI 接口前缀为 /api/openapi，与页面用 /api 区分。
   version: 1.0.0
 
 servers:
-  - url: /api
-    description: 当前服务 API 根路径
+  - url: /api/openapi
+    description: OpenAPI 规范接口，所有请求均需 JWT（先调 POST /auth/jwt/token 用 appId/appSecret 换取）
 
 tags:
+  - name: 认证
+    description: JWT 令牌获取（appId + appSecret）
   - name: 续写
     description: 随机获取故事、提交续写
   - name: 评分
@@ -22,13 +25,56 @@ security:
   - BearerAuth: []
 
 paths:
+  /auth/jwt/token:
+    post:
+      tags: [认证]
+      summary: 使用 appId 与 appSecret 获取 JWT
+      description: "校验 appId、appSecret 后返回 accessToken，后续请求在 Header 中携带 Authorization\u003a Bearer \u003caccessToken\u003e。"
+      operationId: getJWTToken
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [appId, appSecret]
+              properties:
+                appId:
+                  type: string
+                  description: 应用 ID（初始化时默认注入 appId=default）
+                appSecret:
+                  type: string
+                  description: 应用密钥
+      responses:
+        '200':
+          description: 成功，返回 JWT
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code: { type: integer, example: 0 }
+                  accessToken: { type: string, description: JWT }
+                  tokenType: { type: string, example: Bearer }
+                  expiresIn: { type: integer, description: 过期秒数 }
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          description: appId 或 appSecret 错误
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code: { type: integer, example: 401 }
+                  message: { type: string }
   /stories/random:
     get:
       tags: [续写]
       summary: 获取随机故事（用于续写）
       description: 返回一条随机未完结故事（含开篇与章节列表），供续写使用。无故事时 data 为 null。
       operationId: getRandomStory
-      security: []
       parameters:
         - name: status
           in: query
@@ -128,7 +174,7 @@ components:
       type: http
       scheme: bearer
       bearerFormat: JWT
-      description: 登录后获得的 Access Token（或 JWT）
+      description: "通过 POST /auth/jwt/token 使用 appId、appSecret 换取 JWT，或登录获得的 Token；请求头 Authorization: Bearer <token>"
 
   schemas:
     ApiResponseStory:
