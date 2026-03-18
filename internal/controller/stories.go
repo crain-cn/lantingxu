@@ -11,7 +11,7 @@ import (
 )
 
 func GetStoryByID(db *sql.DB, id int64, withChapters bool) (map[string]any, error) {
-	var title, opening, tags, status string
+	var title, opening, tags, status, authorAgentID string
 	var creatorID sql.NullInt64
 	var creatorUsername string
 	var likeCount, commentCount, chapterCount int
@@ -19,10 +19,10 @@ func GetStoryByID(db *sql.DB, id int64, withChapters bool) (map[string]any, erro
 	var scoreCount sql.NullInt64
 	var createdAt, updatedAt string
 	err := db.QueryRow(`SELECT s.title, s.opening, s.tags, s.status, s.creator_user_id, s.like_count, s.comment_count, s.chapter_count,
-		COALESCE(s.score_avg, 0), COALESCE(s.score_count, 0), s.created_at, s.updated_at, COALESCE(u.username, '')
+		COALESCE(s.score_avg, 0), COALESCE(s.score_count, 0), s.created_at, s.updated_at, COALESCE(u.username, ''), COALESCE(s.author_agent_id, '')
 		FROM stories s LEFT JOIN users u ON s.creator_user_id = u.id WHERE s.id = ?`, id).Scan(
 		&title, &opening, &tags, &status, &creatorID, &likeCount, &commentCount, &chapterCount,
-		&scoreAvg, &scoreCount, &createdAt, &updatedAt, &creatorUsername)
+		&scoreAvg, &scoreCount, &createdAt, &updatedAt, &creatorUsername, &authorAgentID)
 	if err != nil {
 		return nil, err
 	}
@@ -39,7 +39,8 @@ func GetStoryByID(db *sql.DB, id int64, withChapters bool) (map[string]any, erro
 	}
 	out := map[string]any{
 		"id": id, "title": title, "opening": opening, "tags": tags, "status": status,
-		"creatorUserId": creatorUserId, "creatorUsername": creatorUsername, "likeCount": likeCount, "commentCount": commentCount, "chapterCount": chapterCount,
+		"creatorUserId": creatorUserId, "creatorUsername": creatorUsername, "authorAgentId": authorAgentID,
+		"likeCount": likeCount, "commentCount": commentCount, "chapterCount": chapterCount,
 		"scoreAvg": avg, "scoreCount": cnt, "createdAt": createdAt, "updatedAt": updatedAt,
 	}
 	if !withChapters {
@@ -71,6 +72,60 @@ func GetStoryByID(db *sql.DB, id int64, withChapters bool) (map[string]any, erro
 	}
 	out["chapters"] = chapters
 	return out, nil
+}
+
+// HandleStoriesByAuthorAgentId 按 authorAgentId 获取该 Agent 发布的章节列表（续写内容）。
+func HandleStoriesByAuthorAgentId(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	authorAgentId := strings.TrimSpace(r.URL.Query().Get("authorAgentId"))
+	if authorAgentId == "" {
+		WriteJSON(w, 400, map[string]any{"code": 400, "message": "缺少 authorAgentId"})
+		return
+	}
+	page, _ := strconv.Atoi(r.URL.Query().Get("page"))
+	if page < 1 {
+		page = 1
+	}
+	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
+	if limit < 1 || limit > 100 {
+		limit = 20
+	}
+	offset := (page - 1) * limit
+
+	db, err := model.GetDB()
+	if err != nil {
+		WriteJSON(w, 500, map[string]any{"code": 500, "message": err.Error()})
+		return
+	}
+	rows, err := db.Query(`SELECT c.id, c.story_id, c.seq, c.content, c.created_at, s.title AS story_title
+		FROM chapters c JOIN stories s ON c.story_id = s.id
+		WHERE c.author_agent_id = ?
+		ORDER BY c.created_at DESC LIMIT ? OFFSET ?`, authorAgentId, limit, offset)
+	if err != nil {
+		WriteJSON(w, 500, map[string]any{"code": 500, "message": err.Error()})
+		return
+	}
+	defer rows.Close()
+	var list []map[string]any
+	for rows.Next() {
+		var chID, storyID, seq int64
+		var content, createdAt, storyTitle string
+		_ = rows.Scan(&chID, &storyID, &seq, &content, &createdAt, &storyTitle)
+		list = append(list, map[string]any{
+			"storyId":    storyID,
+			"storyTitle": storyTitle,
+			"chapter": map[string]any{
+				"id":        chID,
+				"seq":       seq,
+				"content":   content,
+				"createdAt": createdAt,
+			},
+		})
+	}
+	WriteJSON(w, 200, map[string]any{"code": 0, "data": list, "page": page, "limit": limit})
 }
 
 func HandleStoriesRandom(w http.ResponseWriter, r *http.Request) {
@@ -129,7 +184,7 @@ func HandleStoriesList(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	baseSQL := "SELECT id, title, opening, tags, status, creator_user_id, like_count, comment_count, chapter_count, created_at, updated_at FROM stories WHERE 1=1"
+	baseSQL := "SELECT id, title, opening, tags, status, creator_user_id, like_count, comment_count, chapter_count, created_at, updated_at, COALESCE(author_agent_id, '') FROM stories WHERE 1=1"
 	args := []any{}
 	if status != "" {
 		baseSQL += " AND status = ?"
@@ -156,17 +211,18 @@ func HandleStoriesList(w http.ResponseWriter, r *http.Request) {
 	for rows.Next() {
 		var id int64
 		var creatorID sql.NullInt64
-		var title, opening, tags, status string
+		var title, opening, tags, status, authorAgentID string
 		var likeCount, commentCount, chapterCount int
 		var createdAt, updatedAt string
-		_ = rows.Scan(&id, &title, &opening, &tags, &status, &creatorID, &likeCount, &commentCount, &chapterCount, &createdAt, &updatedAt)
+		_ = rows.Scan(&id, &title, &opening, &tags, &status, &creatorID, &likeCount, &commentCount, &chapterCount, &createdAt, &updatedAt, &authorAgentID)
 		creatorUserId := int64(0)
 		if creatorID.Valid {
 			creatorUserId = creatorID.Int64
 		}
 		list = append(list, map[string]any{
 			"id": id, "title": title, "opening": opening, "tags": tags, "status": status,
-			"creatorUserId": creatorUserId, "likeCount": likeCount, "commentCount": commentCount, "chapterCount": chapterCount,
+			"creatorUserId": creatorUserId, "authorAgentId": authorAgentID,
+			"likeCount": likeCount, "commentCount": commentCount, "chapterCount": chapterCount,
 			"createdAt": createdAt, "updatedAt": updatedAt,
 		})
 	}
@@ -307,9 +363,10 @@ func HandleStoryCreate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var body struct {
-		Title   string `json:"title"`
-		Opening string `json:"opening"`
-		Tags    string `json:"tags"`
+		Title         string `json:"title"`
+		Opening       string `json:"opening"`
+		Tags          string `json:"tags"`
+		AuthorAgentID string `json:"authorAgentId"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.Title == "" {
 		WriteJSON(w, 400, map[string]any{"code": 400, "message": "缺少 title"})
@@ -320,15 +377,18 @@ func HandleStoryCreate(w http.ResponseWriter, r *http.Request) {
 		WriteJSON(w, 500, map[string]any{"code": 500, "message": err.Error()})
 		return
 	}
-	res, err := db.Exec(`INSERT INTO stories (title, opening, tags, status, creator_user_id) VALUES (?, ?, ?, 'ongoing', ?)`,
-		body.Title, body.Opening, body.Tags, userID)
+	res, err := db.Exec(`INSERT INTO stories (title, opening, tags, status, creator_user_id, author_agent_id) VALUES (?, ?, ?, 'ongoing', ?, ?)`,
+		body.Title, body.Opening, body.Tags, userID, body.AuthorAgentID)
 	if err != nil {
 		WriteJSON(w, 500, map[string]any{"code": 500, "message": err.Error()})
 		return
 	}
 	id, _ := res.LastInsertId()
 	story, _ := GetStoryByID(db, id, false)
-	displayName := strings.TrimSpace(username)
+	displayName := strings.TrimSpace(body.AuthorAgentID)
+	if displayName == "" {
+		displayName = strings.TrimSpace(username)
+	}
 	if displayName == "" {
 		displayName = "某用户"
 	}

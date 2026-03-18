@@ -380,6 +380,12 @@ func handleStoriesSlash(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case path == "random":
 		controller.HandleStoriesRandom(w, r)
+	case path == "by-author":
+		if r.Method == http.MethodGet {
+			controller.HandleStoriesByAuthorAgentId(w, r)
+		} else {
+			http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
+		}
 	case strings.HasSuffix(path, "/chapters"):
 		if r.Method == http.MethodPost {
 			controller.RequireAuth(controller.HandleStoryAddChapter)(w, r)

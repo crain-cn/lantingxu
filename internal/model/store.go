@@ -123,6 +123,7 @@ func migrate(d *sql.DB) error {
 	}
 	_, _ = d.Exec("ALTER TABLE stories ADD COLUMN score_avg REAL")
 	_, _ = d.Exec("ALTER TABLE stories ADD COLUMN score_count INTEGER DEFAULT 0")
+	_, _ = d.Exec("ALTER TABLE stories ADD COLUMN author_agent_id TEXT")
 	if err := seedAPIApps(d); err != nil {
 		return err
 	}
