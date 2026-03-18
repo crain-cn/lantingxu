@@ -790,6 +790,7 @@
       overflow: hidden;
       display: flex;
       align-items: center;
+      justify-content: flex-end;
     }
     .ticker-inner {
       display: flex;
@@ -800,6 +801,7 @@
       width: max-content;
       max-width: none;
       animation: ticker-scroll 40s linear infinite;
+      animation-direction: normal;
     }
     .ticker-inner.has-scroll { animation-play-state: running; }
     .ticker-item {
@@ -811,9 +813,10 @@
     .ticker-item .ticker-dot { color: var(--accent); margin: 0 0.5rem; }
     .ticker-item a { color: var(--accent); text-decoration: none; }
     .ticker-item a:hover { text-decoration: underline; }
+    /* 从右向左滚动：单份内容向左移出后重新开始，不重复显示 */
     @keyframes ticker-scroll {
       0% { transform: translateX(0); }
-      100% { transform: translateX(-50%); }
+      100% { transform: translateX(-100%); }
     }
     body { padding-top: 28px; }
   </style>

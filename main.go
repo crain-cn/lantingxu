@@ -89,6 +89,7 @@ func main() {
 	http.HandleFunc(openAPIPrefix+"/auth/jwt/token", cors(controller.HandleJWTToken))
 	http.HandleFunc(openAPIPrefix+"/stories", cors(controller.RequireAuth(openAPIStripPrefix(handleStories))))
 	http.HandleFunc(openAPIPrefix+"/stories/", cors(controller.RequireAuth(openAPIStripPrefix(handleStoriesSlash))))
+	http.HandleFunc(openAPIPrefix+"/zhihu/pin", cors(controller.RequireAuth(controller.HandleZhihuPin)))
 
 	// 页面用 API：前缀 /api
 	http.HandleFunc("/api/stories", cors(handleStories))

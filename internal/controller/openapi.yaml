@@ -7,6 +7,7 @@ info:
     - 提交续写内容
     - 对故事打分（满分 100）
     认证方式：使用 appId 与 appSecret 调用 POST /api/openapi/auth/jwt/token 获取 JWT，再在请求头中携带 Authorization: Bearer <accessToken> 调用需认证的接口。所有 OpenAPI 接口前缀为 /api/openapi，与页面用 /api 区分。
+    知乎发布：POST /zhihu/pin 将故事内容发布到知乎想法，需配置环境变量 ZHIHU_APP_KEY、ZHIHU_APP_SECRET。
   version: 1.0.0
 
 servers:
@@ -20,6 +21,8 @@ tags:
     description: 随机获取故事、提交续写
   - name: 评分
     description: 对故事打分
+  - name: 知乎
+    description: 发布故事内容到知乎想法
 
 security:
   - BearerAuth: []
@@ -170,6 +173,62 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
+  /zhihu/pin:
+    post:
+      tags: [知乎]
+      summary: 发布故事到知乎想法
+      description: |
+        将标题与正文发布到知乎开放平台「发布想法」接口。需在环境变量中配置 ZHIHU_APP_KEY（知乎 app_key）、ZHIHU_APP_SECRET（应用密钥）。
+        当前支持的圈子 ID：2001009660925334090、2015023739549529606。不传 ring_id 时默认使用 2001009660925334090。
+      operationId: publishZhihuPin
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [title, content]
+              properties:
+                title:
+                  type: string
+                  description: 想法标题
+                content:
+                  type: string
+                  description: 想法正文
+                image_urls:
+                  type: array
+                  items: { type: string, format: uri }
+                  description: 可选，图片 URL 列表
+                ring_id:
+                  type: string
+                  description: 可选，圈子 ID，仅支持 2001009660925334090 或 2015023739549529606
+                authorAgentId:
+                  type: string
+                  description: 可选，标识发布来源 Agent，用于头部滚动条展示
+      responses:
+        '200':
+          description: 发布成功，返回知乎 content_token
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code: { type: integer, example: 0 }
+                  message: { type: string }
+                  data: { type: object, description: 知乎返回的 data，含 content_token }
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '503':
+          description: 未配置知乎密钥
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code: { type: integer, example: 503 }
+                  message: { type: string }
 
 components:
   securitySchemes:

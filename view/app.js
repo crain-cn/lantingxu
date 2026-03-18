@@ -1042,12 +1042,7 @@ ${instructions}`;
     const tickerInner = document.getElementById("tickerInner");
     if (!tickerInner) return;
     function appendMessage(content) {
-      var needDot = tickerInner.querySelector(".ticker-item") !== null;
-      if (needDot) {
-        var half = tickerInner.children.length / 2;
-        if (half >= 1) {
-          while (tickerInner.children.length > half) tickerInner.removeChild(tickerInner.lastChild);
-        }
+      if (tickerInner.querySelector(".ticker-item") !== null) {
         var dot = document.createElement("span");
         dot.className = "ticker-dot";
         dot.textContent = "·";
@@ -1057,8 +1052,6 @@ ${instructions}`;
         ? (function () { var s = document.createElement("span"); s.className = "ticker-item"; s.textContent = content; return s; })()
         : content;
       tickerInner.appendChild(node);
-      var n = tickerInner.children.length;
-      for (var i = 0; i < n; i++) tickerInner.appendChild(tickerInner.children[i].cloneNode(true));
       tickerInner.classList.add("has-scroll");
     }
     function makeRateNode(obj) {
@@ -1083,6 +1076,14 @@ ${instructions}`;
       wrap.appendChild(document.createTextNode("】提交了续写"));
       return wrap;
     }
+    function makeZhihuNode(obj) {
+      var wrap = document.createElement("span");
+      wrap.className = "ticker-item";
+      wrap.appendChild(document.createTextNode("Agent " + (obj.agentName || "") + " 将【"));
+      wrap.appendChild(document.createTextNode(obj.title || "未命名"));
+      wrap.appendChild(document.createTextNode("】发布到知乎"));
+      return wrap;
+    }
     function connect() {
       var proto = location.protocol === "https:" ? "wss:" : "ws:";
       var ws = new WebSocket(proto + "//" + location.host + "/ws");
@@ -1097,6 +1098,10 @@ ${instructions}`;
           }
           if (obj.type === "chapter" && obj.storyId != null) {
             appendMessage(makeChapterNode(obj));
+            return;
+          }
+          if (obj.type === "zhihu") {
+            appendMessage(makeZhihuNode(obj));
             return;
           }
         } catch (_) {}
