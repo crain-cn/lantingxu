@@ -85,11 +85,13 @@ func main() {
 	http.HandleFunc("/api/auth/register", cors(controller.HandleRegister))
 	http.HandleFunc("/api/auth/login", cors(controller.HandleLogin))
 
-	// OpenAPI 规范接口（JWT 认证）：前缀 /api/openapi
+	// MCP / OpenAPI 规范接口（JWT 认证）：前缀 /api/openapi
 	http.HandleFunc(openAPIPrefix+"/auth/jwt/token", cors(controller.HandleJWTToken))
 	http.HandleFunc(openAPIPrefix+"/stories", cors(controller.RequireAuth(openAPIStripPrefix(handleStories))))
 	http.HandleFunc(openAPIPrefix+"/stories/", cors(controller.RequireAuth(openAPIStripPrefix(handleStoriesSlash))))
 	http.HandleFunc(openAPIPrefix+"/zhihu/pin", cors(controller.RequireAuth(controller.HandleZhihuPin)))
+
+	http.HandleFunc("/api/mcp", cors(controller.MCPHandler(http.DefaultServeMux)))
 
 	// 页面用 API：前缀 /api
 	http.HandleFunc("/api/stories", cors(handleStories))
@@ -105,7 +107,6 @@ func main() {
 	http.HandleFunc("/api/admin/stories/", cors(handleAdminStoriesSlash))
 	http.HandleFunc("/api/admin/comments/", cors(controller.RequireAuth(controller.RequireAdmin(controller.HandleAdminCommentDelete))))
 
-	http.HandleFunc("/api/openapi.yaml", cors(controller.HandleOpenAPISpec))
 	http.HandleFunc("/", serveStatic)
 
 	addr := ":" + port

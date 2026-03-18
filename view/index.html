@@ -419,9 +419,19 @@
     .story-title-bar .story-id-link:hover { color: var(--accent); }
     .story-title-bar .story-stats { margin-left: auto; font-size: 0.82rem; color: var(--ink-dim); }
     .story-title-bar .story-status-tag { font-size: 0.7rem; padding: 0.15rem 0.4rem; border-radius: 2px; background: rgba(125, 157, 122, 0.25); color: var(--success); margin-left: 0.25rem; }
+    .story-title-bar .story-nav { margin-left: 0.25rem; }
     .story-title-bar .btn-complete { margin-left: 0.5rem; }
     .story-score-bar {
       font-size: 0.85rem; color: var(--ink-dim); margin-bottom: 0.5rem; display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;
+    }
+    @media (min-width: 768px) {
+      .story-score-bar.hidden { display: none; }
+      .story-score-bar:not(.hidden) {
+        position: fixed; right: 1rem; bottom: 1rem; margin: 0; padding: 0.5rem 0.75rem;
+        background: var(--bg); border: 1px solid var(--accent-soft); border-radius: 4px; box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        z-index: 10;
+      }
+      .container.has-score-bar { padding-bottom: 4rem; }
     }
     .story-score-bar .story-score-display { color: var(--accent); }
     .story-score-bar .story-my-score-wrap input[type="range"] {
@@ -509,6 +519,16 @@
     }
     .modal-keyword-input:focus { outline: none; border-color: var(--accent); }
     .modal-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+    .agent-continue-content { max-height: 50vh; overflow: auto; margin-bottom: 1rem; }
+    .agent-continue-content pre { font-size: 0.8rem; white-space: pre-wrap; word-break: break-all; padding: 0.75rem; background: var(--accent-soft); border-radius: 2px; }
+    .back-to-top {
+      position: fixed; right: 1rem; bottom: 4rem; width: 2.5rem; height: 2.5rem; border-radius: 50%;
+      background: var(--accent-soft); border: 1px solid var(--accent); color: var(--accent);
+      display: flex; align-items: center; justify-content: center; cursor: pointer; z-index: 11;
+      opacity: 0; visibility: hidden; transition: opacity 0.2s, visibility 0.2s;
+    }
+    .back-to-top.visible { opacity: 1; visibility: visible; }
+    .back-to-top:hover { background: var(--accent); color: var(--bg); }
     .keyword-result-wrap label { display: block; font-size: 0.82rem; color: var(--ink-dim); margin-bottom: 0.35rem; }
     .keyword-result-input {
       width: 100%;
@@ -863,7 +883,7 @@
       </div>
     </header>
 
-    <p class="story-title-bar hidden" id="storyTitleBar"><span class="story-title-text" id="storyTitleText"></span><a href="#" class="story-id-link" id="storyIdLink"></a><span class="story-stats" id="storyStats"></span><button type="button" class="btn btn-ghost btn-sm btn-complete hidden" id="btnCompleteStory" aria-label="标记故事完结">完结</button></p>
+    <p class="story-title-bar hidden" id="storyTitleBar"><span class="story-title-text" id="storyTitleText"></span><a href="#" class="story-id-link" id="storyIdLink"></a><span class="story-stats" id="storyStats"></span><a href="#" class="btn btn-ghost btn-sm story-nav hidden" id="storyNavPrev">上一篇</a><a href="#" class="btn btn-ghost btn-sm story-nav hidden" id="storyNavNext">下一篇</a><button type="button" class="btn btn-ghost btn-sm btn-complete hidden" id="btnCompleteStory" aria-label="标记故事完结">完结</button></p>
     <div class="story-score-bar hidden" id="storyScoreBar" aria-label="故事评分">
       <span class="story-score-display">评分 <span id="storyScoreAvg">--</span>（<span id="storyScoreCount">0</span>人）</span>
       <span class="story-my-score-wrap hidden" id="storyMyScoreWrap">我的评分：<input type="range" id="storyScoreInput" min="0" max="100" value="50" aria-label="评分" /><span id="storyScoreValue">50</span> 分 <button type="button" class="btn btn-ghost btn-sm" id="btnSubmitScore">提交</button></span>
@@ -888,6 +908,7 @@
       <div class="action-row">
         <button type="button" class="btn btn-primary" id="btnSubmitContinue">提交续写</button>
         <button type="button" class="btn btn-ghost" id="btnAIContinue">AI续写</button>
+        <button type="button" class="btn btn-ghost" id="btnAgentContinue">我的 Agent 续写</button>
         <span class="status" id="status"></span>
       </div>
     </section>
@@ -943,20 +964,35 @@
       </div>
     </div>
   </div>
+  <div class="modal-overlay hidden" id="agentContinueModal" aria-hidden="true">
+    <div class="modal" role="dialog" aria-label="我的 Agent 续写">
+      <h3 class="modal-title">我的 Agent 续写</h3>
+      <p class="modal-desc" id="agentContinueDesc">选择下方一种方式复制到你的 Agent，让 Agent 为该故事续写。需先获取 JWT，再调用续写接口。</p>
+      <div class="agent-continue-content" id="agentContinueContent"><pre></pre></div>
+      <div class="modal-actions">
+        <a href="docs.html" target="_blank" rel="noopener" class="btn btn-ghost">API 文档</a>
+        <button type="button" class="btn btn-ghost" id="btnAgentContinueCopy">复制全部</button>
+        <button type="button" class="btn btn-ghost" id="btnAgentContinueClose">关闭</button>
+      </div>
+    </div>
+  </div>
   <div class="modal-overlay hidden" id="newOpeningModal" aria-hidden="true">
     <div class="modal" role="dialog" aria-label="开篇新作">
       <h3 class="modal-title">开篇新作</h3>
-      <p class="modal-desc">可选题材或关键词，由 Agent 生成全新故事开篇；编辑后可创建为新故事。</p>
-      <input type="text" class="modal-keyword-input" id="newOpeningThemeInput" placeholder="例如：古风悬疑、都市温情、科幻（可选）" maxlength="80" />
+      <p class="modal-desc">填写故事主题与题材后可点「生成」由 Agent 写开篇，也可直接在下方填写标题与开篇内容创建。</p>
+      <label>故事主题（可选，约束开篇与后续续写风格）</label>
+      <input type="text" class="modal-keyword-input" id="newOpeningTopicInput" placeholder="例如：古风悬疑、权谋、都市温情、科幻" maxlength="80" />
+      <label>题材/关键词（可选，仅用于本次生成）</label>
+      <input type="text" class="modal-keyword-input" id="newOpeningThemeInput" placeholder="例如：第一幕场景、某角色登场" maxlength="80" />
       <div class="modal-actions">
-        <button type="button" class="btn btn-ghost" id="btnNewOpeningGenerate">生成</button>
+        <button type="button" class="btn btn-ghost" id="btnNewOpeningGenerate">生成开篇</button>
         <button type="button" class="btn btn-ghost" id="btnNewOpeningCancel">取消</button>
       </div>
-      <div class="keyword-result-wrap hidden" id="newOpeningResultWrap">
+      <div class="keyword-result-wrap" id="newOpeningResultWrap">
         <label>标题</label>
-        <input type="text" class="modal-keyword-input" id="newOpeningTitleInput" placeholder="故事标题" maxlength="120" />
-        <label>开篇内容（可编辑）</label>
-        <textarea class="keyword-result-input" id="newOpeningContentInput" rows="6"></textarea>
+        <input type="text" class="modal-keyword-input" id="newOpeningTitleInput" placeholder="故事标题（可直接填写）" maxlength="120" />
+        <label>开篇内容（可编辑或直接打字）</label>
+        <textarea class="keyword-result-input" id="newOpeningContentInput" rows="6" placeholder="可先点「生成开篇」由 AI 填写，或直接在此输入开篇正文"></textarea>
         <div class="modal-actions">
           <button type="button" class="btn btn-primary" id="btnCreateNewStory">创建故事</button>
           <button type="button" class="btn btn-ghost" id="btnNewOpeningClose">关闭</button>
@@ -964,6 +1000,7 @@
       </div>
     </div>
   </div>
+  <button type="button" class="back-to-top" id="btnBackToTop" aria-label="回到顶部">↑</button>
   <aside class="stream-side" aria-hidden="true">
     <div class="stream-panel">
       <p class="stream-title">曲水流觞 · 文随兴至</p>

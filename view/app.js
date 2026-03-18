@@ -32,6 +32,7 @@
   const btnKeywordClose = document.getElementById("btnKeywordClose");
   const btnNewOpening = document.getElementById("btnNewOpening");
   const newOpeningModal = document.getElementById("newOpeningModal");
+  const newOpeningTopicInput = document.getElementById("newOpeningTopicInput");
   const newOpeningThemeInput = document.getElementById("newOpeningThemeInput");
   const btnNewOpeningGenerate = document.getElementById("btnNewOpeningGenerate");
   const btnNewOpeningCancel = document.getElementById("btnNewOpeningCancel");
@@ -48,14 +49,24 @@
   const storyScoreValueEl = document.getElementById("storyScoreValue");
   const btnSubmitScore = document.getElementById("btnSubmitScore");
   const btnCompleteStory = document.getElementById("btnCompleteStory");
+  const storyNavPrev = document.getElementById("storyNavPrev");
+  const storyNavNext = document.getElementById("storyNavNext");
+  const btnAgentContinue = document.getElementById("btnAgentContinue");
+  const agentContinueModal = document.getElementById("agentContinueModal");
+  const agentContinueContent = document.getElementById("agentContinueContent");
+  const btnAgentContinueClose = document.getElementById("btnAgentContinueClose");
+  const btnAgentContinueCopy = document.getElementById("btnAgentContinueCopy");
+  const btnBackToTop = document.getElementById("btnBackToTop");
 
   const TOKEN_KEY = "secondme_access_token";
   const REFRESH_KEY = "secondme_refresh_token";
   const TOKEN_TIME_KEY = "secondme_token_time";
   const EXPIRES_KEY = "secondme_expires_in";
   const USER_NAME_KEY = "secondme_user_name";
+  const LAST_STORY_ID_KEY = "lantingxu_last_story_id";
 
   let currentStory = null;
+  let lastContentFromAI = false;
   let apiConfig = { clientId: "", redirectUri: "" };
   let currentTab = "hot";
   let currentStatus = "all";
@@ -273,6 +284,7 @@
     const styleLabels = { "sci-fi": "科幻", warm: "温情", mystery: "悬疑", philosophy: "哲思", any: "任意" };
     const storyText = getStoryContext(story);
     const suspense = getLastSuspense(story);
+    const storyTopic = (story.tags && String(story.tags).trim()) || "";
     const instructions = [
       "时间：" + (time === "jump" ? "跳跃" : "顺承"),
       "视角：" + (view === "switch" ? "切换" : "保持"),
@@ -286,6 +298,12 @@ ${storyText}
 
 【上文悬念】
 ${suspense || "（无）"}`;
+    if (storyTopic) {
+      prompt += `
+
+【故事主题/约束】
+${storyTopic}`;
+    }
     if (keyword) {
       prompt += `
 
@@ -303,20 +321,16 @@ ${instructions}`;
     return prompt;
   }
 
-  function buildPromptNewOpening(theme) {
-    const hint = (theme || "").trim()
-      ? `【题材/方向】\n${theme.trim()}\n\n`
-      : "";
-    return `你是一位故事创作助手。请写一个全新的故事开篇（第一段），吸引读者继续读下去。${hint}要求：只输出一段开篇正文，不要解释、不要标题、不要序号。若涉及标题，可在段末用一行「标题：xxx」单独给出建议标题（没有则可省略）。`;
+  function buildPromptNewOpening(topic, theme) {
+    const topicHint = (topic || "").trim() ? `【故事主题】（全文风格约束）\n${topic.trim()}\n\n` : "";
+    const themeHint = (theme || "").trim() ? `【题材/关键词】（本段方向）\n${theme.trim()}\n\n` : "";
+    return `你是一位故事创作助手。请写一个全新的故事开篇（第一段），吸引读者继续读下去。${topicHint}${themeHint}要求：只输出一段开篇正文，不要解释、不要标题、不要序号。若涉及标题，可在段末用一行「标题：xxx」单独给出建议标题（没有则可省略）。`;
   }
 
   function openNewOpeningModal() {
     if (newOpeningModal) newOpeningModal.classList.remove("hidden");
-    if (newOpeningThemeInput) {
-      newOpeningThemeInput.value = "";
-      newOpeningThemeInput.focus();
-    }
-    if (newOpeningResultWrap) newOpeningResultWrap.classList.add("hidden");
+    if (newOpeningTopicInput) { newOpeningTopicInput.value = ""; newOpeningTopicInput.focus(); }
+    if (newOpeningThemeInput) newOpeningThemeInput.value = "";
     if (newOpeningTitleInput) newOpeningTitleInput.value = "";
     if (newOpeningContentInput) newOpeningContentInput.value = "";
   }
@@ -331,11 +345,11 @@ ${instructions}`;
       setStatus("请先登录", "error");
       return;
     }
+    const topic = (newOpeningTopicInput && newOpeningTopicInput.value || "").trim();
     const theme = (newOpeningThemeInput && newOpeningThemeInput.value || "").trim();
-    const prompt = buildPromptNewOpening(theme);
+    const prompt = buildPromptNewOpening(topic, theme);
     if (btnNewOpeningGenerate) btnNewOpeningGenerate.disabled = true;
     if (newOpeningContentInput) newOpeningContentInput.value = "正在生成…";
-    if (newOpeningResultWrap) newOpeningResultWrap.classList.remove("hidden");
     const result = await streamSecondMeChat(prompt);
     if (!result.ok) {
       if (newOpeningContentInput) newOpeningContentInput.value = "";
@@ -389,7 +403,11 @@ ${instructions}`;
           "Content-Type": "application/json",
           Authorization: "Bearer " + token,
         },
-        body: JSON.stringify({ title, opening, tags: "" }),
+        body: JSON.stringify({
+        title,
+        opening,
+        tags: (newOpeningTopicInput && newOpeningTopicInput.value || "").trim(),
+      }),
       });
       const data = await r.json().catch(() => ({}));
       if (r.status === 401) {
@@ -456,8 +474,11 @@ ${instructions}`;
     div.className = "segment";
     div.dataset.chapterId = String(ch.id);
     const likeCount = ch.likeCount != null ? ch.likeCount : 0;
-    const isAgent = !!(ch.authorAgentId && String(ch.authorAgentId).trim());
-    const authorLabel = isAgent ? "Agent: " + ch.authorAgentId : ((ch.authorUsername && String(ch.authorUsername).trim()) || "作者");
+    const agentId = (ch.authorAgentId && String(ch.authorAgentId).trim()) || "";
+    const isLantingAI = agentId === "兰亭集AI";
+    const authorLabel = isLantingAI
+      ? ((ch.authorUsername && String(ch.authorUsername).trim()) || "我") + " · 兰亭集AI"
+      : agentId ? "Agent: " + agentId : ((ch.authorUsername && String(ch.authorUsername).trim()) || "作者");
     const authorTag = '<span class="tag">' + escapeHtml(authorLabel) + '</span>';
     div.innerHTML =
       `<div class="segment-meta">${authorTag}</div>` +
@@ -588,6 +609,21 @@ ${instructions}`;
           storyIdLink.href = "#story/" + story.id;
           storyIdLink.textContent = "#" + story.id;
         }
+        const idx = rankingList.findIndex((s) => s && s.id === story.id);
+        if (storyNavPrev) {
+          storyNavPrev.classList.toggle("hidden", idx <= 0);
+          if (idx > 0 && rankingList[idx - 1]) {
+            storyNavPrev.href = "#story/" + rankingList[idx - 1].id;
+            storyNavPrev.textContent = "上一篇";
+          }
+        }
+        if (storyNavNext) {
+          storyNavNext.classList.toggle("hidden", idx < 0 || idx >= rankingList.length - 1);
+          if (idx >= 0 && rankingList[idx + 1]) {
+            storyNavNext.href = "#story/" + rankingList[idx + 1].id;
+            storyNavNext.textContent = "下一篇";
+          }
+        }
         const statsEl = document.getElementById("storyStats");
         if (statsEl) {
           const lc = story.likeCount != null ? story.likeCount : 0;
@@ -617,10 +653,14 @@ ${instructions}`;
           const showComplete = loggedIn && story.status !== "completed";
           btnCompleteStory.classList.toggle("hidden", !showComplete);
         }
+        document.querySelector(".container")?.classList.toggle("has-score-bar", !!(storyScoreBar && !storyScoreBar.classList.contains("hidden")));
       } else {
         storyTitleBar.classList.add("hidden");
         if (storyScoreBar) storyScoreBar.classList.add("hidden");
         if (btnCompleteStory) btnCompleteStory.classList.add("hidden");
+        if (storyNavPrev) storyNavPrev.classList.add("hidden");
+        if (storyNavNext) storyNavNext.classList.add("hidden");
+        document.querySelector(".container")?.classList.remove("has-score-bar");
       }
     }
 
@@ -725,6 +765,8 @@ ${instructions}`;
       return;
     }
     if (currentStory.status === "completed") return;
+    const title = (currentStory.title || "未命名").trim();
+    if (!confirm("确定将《" + title + "》标记为完结吗？仅故事创作者可执行此操作。")) return;
     btnCompleteStory.disabled = true;
     setStatus("提交中…", "generating");
     try {
@@ -766,13 +808,23 @@ ${instructions}`;
     const m = hash.match(/^story\/(\d+)$/);
     if (m) {
       const story = await fetchStoryById(m[1]);
+      if (story) sessionStorage.setItem(LAST_STORY_ID_KEY, String(story.id));
       renderStory(story);
       if (story && continueArea && !continueArea.classList.contains("hidden")) {
         continueInput.focus();
       }
       return;
     }
-    const story = await fetchRandomStory();
+    let story = null;
+    const lastId = sessionStorage.getItem(LAST_STORY_ID_KEY);
+    if (lastId) {
+      story = await fetchStoryById(lastId);
+      if (!story) sessionStorage.removeItem(LAST_STORY_ID_KEY);
+    }
+    if (!story) {
+      story = await fetchRandomStory();
+      if (story) sessionStorage.setItem(LAST_STORY_ID_KEY, String(story.id));
+    }
     renderStory(story);
   }
 
@@ -789,6 +841,7 @@ ${instructions}`;
       setStatus("暂无未完成的故事", "error");
       return;
     }
+    if (story && story.id) sessionStorage.setItem(LAST_STORY_ID_KEY, String(story.id));
     renderStory(story);
     location.hash = "#story/" + story.id;
     if (continueInput) {
@@ -814,13 +867,18 @@ ${instructions}`;
     btnSubmitContinue.disabled = true;
     setStatus("提交中…", "generating");
     try {
+      const body = { content };
+      if (lastContentFromAI) {
+        body.authorAgentId = "兰亭集AI";
+        lastContentFromAI = false;
+      }
       const r = await fetch("/api/stories/" + currentStory.id + "/chapters", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: "Bearer " + token,
         },
-        body: JSON.stringify({ content }),
+        body: JSON.stringify(body),
       });
       const data = await r.json().catch(() => ({}));
       if (r.status === 401) {
@@ -872,6 +930,7 @@ ${instructions}`;
       setStatus("流式读取异常：" + e.message, "error");
     }
     btnAIContinue.disabled = false;
+    if (streamedText.trim()) lastContentFromAI = true;
     setStatus(streamedText.trim() ? "已生成，可编辑后提交" : "未生成内容");
     setTimeout(() => setStatus(""), 3000);
   }
@@ -936,6 +995,75 @@ ${instructions}`;
 
   function closeKeywordModal() {
     if (keywordModal) keywordModal.classList.add("hidden");
+  }
+
+  function buildAgentContinueText() {
+    const base = location.origin;
+    const storyId = currentStory ? String(currentStory.id) : "";
+    const title = (currentStory && currentStory.title) ? currentStory.title : "当前故事";
+    const jwtUrl = base + "/api/openapi/auth/jwt/token";
+    const mcpUrl = base + "/api/mcp";
+    const mcpGetToken = JSON.stringify({
+      jsonrpc: "2.0",
+      id: 1,
+      method: "tools/call",
+      params: { name: "get_jwt_token", arguments: { appId: "default", appSecret: "你的appSecret" } }
+    }, null, 2);
+    const mcpSubmit = JSON.stringify({
+      jsonrpc: "2.0",
+      id: 2,
+      method: "tools/call",
+      params: {
+        name: "submit_chapter",
+        arguments: {
+          storyId: storyId || "{故事ID}",
+          content: "续写正文",
+          authorAgentId: "你的Agent名称",
+          accessToken: "<从 get_jwt_token 返回的 accessToken>"
+        }
+      }
+    }, null, 2);
+    return (
+      "【" + title + "】故事 ID：" + (storyId || "-") + "\n\n" +
+      "========== MCP 方式（推荐）==========\n" +
+      "端点: POST " + mcpUrl + "\n\n" +
+      "1) 获取 JWT：\n" + mcpGetToken + "\n\n" +
+      "2) 提交续写：\n" + mcpSubmit + "\n\n" +
+      "========== REST 方式 ==========\n" +
+      "1) 获取 JWT：POST " + jwtUrl + "\n" +
+      "   Body: {\"appId\":\"default\",\"appSecret\":\"你的appSecret\"}\n\n" +
+      "2) 提交续写：POST " + base + "/api/openapi/stories/" + (storyId || "{故事ID}") + "/chapters\n" +
+      "   Header: Authorization: Bearer <accessToken>\n" +
+      "   Body: {\"content\":\"续写正文\",\"authorAgentId\":\"你的Agent名称\"}"
+    );
+  }
+  function openAgentContinueModal() {
+    if (!currentStory) return;
+    const desc = document.getElementById("agentContinueDesc");
+    if (desc) desc.textContent = "选择下方一种方式复制到你的 Agent，让 Agent 为《" + (currentStory.title || "该故事") + "》续写。需先获取 JWT，再调用续写接口。";
+    if (agentContinueModal) agentContinueModal.classList.remove("hidden");
+    const pre = agentContinueContent && agentContinueContent.querySelector("pre");
+    if (pre) pre.textContent = buildAgentContinueText();
+  }
+  function closeAgentContinueModal() {
+    if (agentContinueModal) agentContinueModal.classList.add("hidden");
+  }
+  function copyAgentContinueContent() {
+    const text = buildAgentContinueText();
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(() => setStatus("已复制到剪贴板"), () => setStatus("复制失败", "error"));
+    } else {
+      const ta = document.createElement("textarea");
+      ta.value = text;
+      document.body.appendChild(ta);
+      ta.select();
+      try {
+        document.execCommand("copy");
+        setStatus("已复制到剪贴板");
+      } catch (_) { setStatus("复制失败", "error"); }
+      document.body.removeChild(ta);
+    }
+    setTimeout(() => setStatus(""), 2000);
   }
 
   async function onKeywordGenerate() {
@@ -1034,6 +1162,13 @@ ${instructions}`;
   if (btnCreateNewStory) btnCreateNewStory.addEventListener("click", onCreateNewStory);
   if (btnSubmitScore) btnSubmitScore.addEventListener("click", onSubmitScore);
   if (btnCompleteStory) btnCompleteStory.addEventListener("click", onCompleteStory);
+  if (btnAgentContinue) btnAgentContinue.addEventListener("click", openAgentContinueModal);
+  if (btnAgentContinueClose) btnAgentContinueClose.addEventListener("click", closeAgentContinueModal);
+  if (btnAgentContinueCopy) btnAgentContinueCopy.addEventListener("click", copyAgentContinueContent);
+  if (btnBackToTop) {
+    btnBackToTop.addEventListener("click", () => { window.scrollTo({ top: 0, behavior: "smooth" }); });
+    window.addEventListener("scroll", () => { btnBackToTop.classList.toggle("visible", window.scrollY > 300); });
+  }
   if (storyScoreInput && storyScoreValueEl) {
     storyScoreInput.addEventListener("input", () => { storyScoreValueEl.textContent = storyScoreInput.value; });
   }

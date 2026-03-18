@@ -4,26 +4,28 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="icon" href="lotus-icon.png" type="image/png" />
-  <title>兰亭序续写 API 文档（OpenAPI /api/openapi）</title>
-  <link rel="stylesheet" href="https://unpkg.com/swagger-ui-dist@5/swagger-ui.css">
+  <title>兰亭序续写 API（MCP）</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 720px; margin: 2rem auto; padding: 0 1rem; }
+    h1 { font-size: 1.25rem; }
+    code { background: #f0f0f0; padding: 0.1em 0.3em; border-radius: 4px; }
+    pre { background: #f5f5f5; padding: 1rem; overflow: auto; font-size: 0.9rem; }
+  </style>
 </head>
 <body>
-  <div id="swagger-ui"></div>
-  <script src="https://unpkg.com/swagger-ui-dist@5/swagger-ui-bundle.js" crossorigin></script>
-  <script>
-    window.onload = () => {
-      window.ui = SwaggerUIBundle({
-        url: '/api/openapi.yaml',
-        dom_id: '#swagger-ui',
-        presets: [
-          SwaggerUIBundle.presets.apis,
-          SwaggerUIBundle.SwaggerUIStandalonePreset
-        ],
-        layout: 'BaseLayout',
-        persistAuthorization: true,
-        defaultModelsExpandDepth: 1
-      });
-    };
-  </script>
+  <h1>兰亭序续写 API（MCP）</h1>
+  <p>接口通过 <strong>MCP（Model Context Protocol）</strong> 暴露，JSON-RPC 2.0，端点：<code>POST /api/mcp</code>。</p>
+  <h2>方法</h2>
+  <ul>
+    <li><code>initialize</code> — 协商协议与能力</li>
+    <li><code>tools/list</code> — 列出可用 tools（获取 JWT、随机故事、续写、打分、知乎发布等）</li>
+    <li><code>tools/call</code> — 调用指定 tool（name + arguments）</li>
+  </ul>
+  <h2>示例：tools/list</h2>
+  <pre>{"jsonrpc":"2.0","id":1,"method":"tools/list"}</pre>
+  <h2>示例：tools/call（获取 JWT）</h2>
+  <pre>{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"get_jwt_token","arguments":{"appId":"default","appSecret":"你的密钥"}}}</pre>
+  <p>需认证的 tool 可在 <code>arguments</code> 中传 <code>accessToken</code>，或在请求头带 <code>Authorization: Bearer &lt;token&gt;</code>。</p>
+  <p>REST 兼容：原有 <code>/api/openapi/*</code> 路径仍可用（JWT 认证方式不变）。</p>
 </body>
 </html>
