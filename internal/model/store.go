@@ -1,10 +1,9 @@
-package main
+package model
 
 import (
 	"database/sql"
 	"os"
 	"sync"
-	"time"
 
 	_ "modernc.org/sqlite"
 )
@@ -14,7 +13,7 @@ var (
 	once sync.Once
 )
 
-func initDB() (*sql.DB, error) {
+func InitDB() (*sql.DB, error) {
 	var err error
 	once.Do(func() {
 		path := os.Getenv("DB_PATH")
@@ -25,7 +24,7 @@ func initDB() (*sql.DB, error) {
 		if err != nil {
 			return
 		}
-		db.SetMaxOpenConns(1) // SQLite 单写
+		db.SetMaxOpenConns(1)
 		if err = migrate(db); err != nil {
 			db.Close()
 			db = nil
@@ -34,9 +33,15 @@ func initDB() (*sql.DB, error) {
 	return db, err
 }
 
+func GetDB() (*sql.DB, error) {
+	if db != nil {
+		return db, nil
+	}
+	return InitDB()
+}
+
 func migrate(d *sql.DB) error {
 	schema := `
-	-- 用户表
 	CREATE TABLE IF NOT EXISTS users (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
 		username TEXT UNIQUE NOT NULL,
@@ -45,8 +50,6 @@ func migrate(d *sql.DB) error {
 		role TEXT DEFAULT 'user' CHECK(role IN ('user','admin')),
 		created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 	);
-
-	-- 故事表（冗余点赞/评论/章节数以支撑热门榜）
 	CREATE TABLE IF NOT EXISTS stories (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
 		title TEXT NOT NULL,
@@ -63,8 +66,6 @@ func migrate(d *sql.DB) error {
 	CREATE INDEX IF NOT EXISTS idx_stories_status ON stories(status);
 	CREATE INDEX IF NOT EXISTS idx_stories_creator ON stories(creator_user_id);
 	CREATE INDEX IF NOT EXISTS idx_stories_created ON stories(created_at DESC);
-
-	-- 章节表
 	CREATE TABLE IF NOT EXISTS chapters (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
 		story_id INTEGER NOT NULL REFERENCES stories(id) ON DELETE CASCADE,
@@ -76,16 +77,12 @@ func migrate(d *sql.DB) error {
 		UNIQUE(story_id, seq)
 	);
 	CREATE INDEX IF NOT EXISTS idx_chapters_story ON chapters(story_id);
-
-	-- 章节点赞（用户对某章节点一次赞）
 	CREATE TABLE IF NOT EXISTS chapter_likes (
 		chapter_id INTEGER NOT NULL REFERENCES chapters(id) ON DELETE CASCADE,
 		user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
 		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 		PRIMARY KEY (chapter_id, user_id)
 	);
-
-	-- 章节评论（支持软删）
 	CREATE TABLE IF NOT EXISTS chapter_comments (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
 		chapter_id INTEGER NOT NULL REFERENCES chapters(id) ON DELETE CASCADE,
@@ -96,8 +93,6 @@ func migrate(d *sql.DB) error {
 	);
 	CREATE INDEX IF NOT EXISTS idx_comments_chapter ON chapter_comments(chapter_id);
 	CREATE INDEX IF NOT EXISTS idx_comments_deleted ON chapter_comments(deleted_at);
-
-	-- 推荐权重表（用于推荐榜，可多源分数）
 	CREATE TABLE IF NOT EXISTS recommendation_weights (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
 		story_id INTEGER NOT NULL REFERENCES stories(id) ON DELETE CASCADE,
@@ -107,8 +102,6 @@ func migrate(d *sql.DB) error {
 		UNIQUE(story_id, source)
 	);
 	CREATE INDEX IF NOT EXISTS idx_rec_story ON recommendation_weights(story_id);
-
-	-- 故事评分（满分100，每用户每故事一条）
 	CREATE TABLE IF NOT EXISTS story_ratings (
 		user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
 		story_id INTEGER NOT NULL REFERENCES stories(id) ON DELETE CASCADE,
@@ -121,19 +114,16 @@ func migrate(d *sql.DB) error {
 	if _, err := d.Exec(schema); err != nil {
 		return err
 	}
-	// 兼容旧库：为 stories 增加评分冗余列（若已存在则忽略）
 	_, _ = d.Exec("ALTER TABLE stories ADD COLUMN score_avg REAL")
 	_, _ = d.Exec("ALTER TABLE stories ADD COLUMN score_count INTEGER DEFAULT 0")
 	return seedStories(d)
 }
 
-// seedStories 在故事表为空时插入热榜展示用示例数据
 func seedStories(d *sql.DB) error {
 	var n int
 	if err := d.QueryRow("SELECT COUNT(*) FROM stories").Scan(&n); err != nil || n > 0 {
 		return err
 	}
-	// 热榜按 like_count + comment_count + chapter_count 排序，插入有差异的示例
 	rows := []struct {
 		title   string
 		opening string
@@ -167,12 +157,3 @@ func seedStories(d *sql.DB) error {
 	}
 	return nil
 }
-
-func getDB() (*sql.DB, error) {
-	if db != nil {
-		return db, nil
-	}
-	return initDB()
-}
-
-func timePtr(t time.Time) *time.Time { return &t }

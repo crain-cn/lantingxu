@@ -2,15 +2,16 @@ package main
 
 import (
 	"bytes"
-	"database/sql"
 	"encoding/json"
-	"errors"
 	"io"
 	"log"
 	"net/http"
 	"net/url"
 	"os"
 	"strings"
+
+	"lantingxu/internal/controller"
+	"lantingxu/internal/model"
 )
 
 const baseURL = "https://api.mindverse.com/gate/lab"
@@ -31,9 +32,13 @@ func init() {
 	}
 }
 
+func writeJSON(w http.ResponseWriter, status int, v any) {
+	controller.WriteJSON(w, status, v)
+}
+
 func main() {
-	if _, err := initDB(); err != nil {
-		log.Fatal("initDB: ", err)
+	if _, err := model.InitDB(); err != nil {
+		log.Fatal("InitDB: ", err)
 	}
 
 	cors := func(h http.HandlerFunc) http.HandlerFunc {
@@ -55,22 +60,23 @@ func main() {
 	http.HandleFunc("/api/oauth/me", cors(handleOAuthMe))
 	http.HandleFunc("/api/chat/stream", cors(handleChatStream))
 
-	http.HandleFunc("/api/auth/register", cors(handleRegister))
-	http.HandleFunc("/api/auth/login", cors(handleLogin))
+	http.HandleFunc("/api/auth/register", cors(controller.HandleRegister))
+	http.HandleFunc("/api/auth/login", cors(controller.HandleLogin))
 
 	http.HandleFunc("/api/stories", cors(handleStories))
 	http.HandleFunc("/api/stories/", cors(handleStoriesSlash))
 
-	http.HandleFunc("/api/rankings/hot", cors(handleRankingsHot))
-	http.HandleFunc("/api/rankings/new", cors(handleRankingsNew))
-	http.HandleFunc("/api/rankings/recommend", cors(handleRankingsRecommend))
+	http.HandleFunc("/api/rankings/hot", cors(controller.HandleRankingsHot))
+	http.HandleFunc("/api/rankings/new", cors(controller.HandleRankingsNew))
+	http.HandleFunc("/api/rankings/recommend", cors(controller.HandleRankingsRecommend))
 
 	http.HandleFunc("/api/chapters/", cors(handleChapters))
 
-	http.HandleFunc("/api/admin/stories", cors(requireAuth(requireAdmin(handleAdminStoriesList))))
+	http.HandleFunc("/api/admin/stories", cors(controller.RequireAuth(controller.RequireAdmin(controller.HandleAdminStoriesList))))
 	http.HandleFunc("/api/admin/stories/", cors(handleAdminStoriesSlash))
-	http.HandleFunc("/api/admin/comments/", cors(requireAuth(requireAdmin(handleAdminCommentDelete))))
+	http.HandleFunc("/api/admin/comments/", cors(controller.RequireAuth(controller.RequireAdmin(controller.HandleAdminCommentDelete))))
 
+	http.HandleFunc("/api/openapi.yaml", cors(controller.HandleOpenAPISpec))
 	http.HandleFunc("/", serveStatic)
 
 	addr := ":" + port
@@ -84,9 +90,9 @@ func main() {
 func handleConfig(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]any{
-		"clientId":   clientID,
-		"redirectUri": redirectURI,
-		"hasSecret":  clientSecret != "",
+		"clientId":     clientID,
+		"redirectUri":  redirectURI,
+		"hasSecret":    clientSecret != "",
 	})
 }
 
@@ -98,7 +104,7 @@ func handleOAuthToken(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		Code        string `json:"code"`
 		RedirectURI string `json:"redirect_uri"`
-		RedirectUri string `json:"redirectUri"` // 与 callback 统一，二选一
+		RedirectUri string `json:"redirectUri"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		writeJSON(w, 400, map[string]any{"code": 400, "message": "无效请求体"})
@@ -252,64 +258,11 @@ func handleOAuthMe(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, 200, map[string]any{
-		"code": 0,
-		"name":  out.Data.Name,
-		"bio":   out.Data.Bio,
+		"code":   0,
+		"name":   out.Data.Name,
+		"bio":    out.Data.Bio,
 		"avatar": out.Data.Avatar,
 	})
-}
-
-// resolveSecondMeUser 用 SecondMe access token 调 /api/secondme/user/info 校验，并在本地 find-or-create 用户，返回 (userID, username, nil) 或错误。
-func resolveSecondMeUser(accessToken string) (userID int64, username string, err error) {
-	req, err := http.NewRequest(http.MethodGet, baseURL+"/api/secondme/user/info", nil)
-	if err != nil {
-		return 0, "", err
-	}
-	req.Header.Set("Authorization", "Bearer "+accessToken)
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return 0, "", err
-	}
-	defer resp.Body.Close()
-	data, _ := io.ReadAll(resp.Body)
-	var out struct {
-		Code    int `json:"code"`
-		Data   struct {
-			Name string `json:"name"`
-		} `json:"data"`
-	}
-	_ = json.Unmarshal(data, &out)
-	if out.Code != 0 {
-		return 0, "", errors.New("invalid secondme token")
-	}
-	name := out.Data.Name
-	if name == "" {
-		name = "secondme_user"
-	}
-	// 本地用户名，避免与普通注册冲突
-	username = "secondme_" + strings.ReplaceAll(strings.TrimSpace(name), " ", "_")
-	db, err := getDB()
-	if err != nil {
-		return 0, "", err
-	}
-	var id int64
-	err = db.QueryRow("SELECT id FROM users WHERE username = ?", username).Scan(&id)
-	if err == nil {
-		return id, username, nil
-	}
-	if err != sql.ErrNoRows {
-		return 0, "", err
-	}
-	hash, err := hashPassword("secondme-nologin")
-	if err != nil {
-		return 0, "", err
-	}
-	res, err := db.Exec("INSERT INTO users (username, password_hash, email, role) VALUES (?, ?, '', 'user')", username, hash)
-	if err != nil {
-		return 0, "", err
-	}
-	id, _ = res.LastInsertId()
-	return id, username, nil
 }
 
 func handleChatStream(w http.ResponseWriter, r *http.Request) {
@@ -379,54 +332,46 @@ func handleChatStream(w http.ResponseWriter, r *http.Request) {
 	io.Copy(w, resp.Body)
 }
 
-func writeJSON(w http.ResponseWriter, status int, v any) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	json.NewEncoder(w).Encode(v)
-}
-
-// handleStories: GET /api/stories -> list, POST /api/stories -> create(需登录)
 func handleStories(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Path != "/api/stories" {
 		return
 	}
 	switch r.Method {
 	case http.MethodGet:
-		handleStoriesList(w, r)
+		controller.HandleStoriesList(w, r)
 	case http.MethodPost:
-		requireAuth(handleStoryCreate)(w, r)
+		controller.RequireAuth(controller.HandleStoryCreate)(w, r)
 	default:
 		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
 	}
 }
 
-// handleStoriesSlash: /api/stories/random, /api/stories/{id}, /api/stories/{id}/chapters, /api/stories/{id}/rate, /api/stories/{id}/rating
 func handleStoriesSlash(w http.ResponseWriter, r *http.Request) {
 	path := strings.TrimPrefix(r.URL.Path, "/api/stories/")
 	switch {
 	case path == "random":
-		handleStoriesRandom(w, r)
+		controller.HandleStoriesRandom(w, r)
 	case strings.HasSuffix(path, "/chapters"):
 		if r.Method == http.MethodPost {
-			requireAuth(handleStoryAddChapter)(w, r)
+			controller.RequireAuth(controller.HandleStoryAddChapter)(w, r)
 		} else {
 			http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
 		}
 	case strings.HasSuffix(path, "/rate"):
 		if r.Method == http.MethodPost {
-			requireAuth(handleStoryRate)(w, r)
+			controller.RequireAuth(controller.HandleStoryRate)(w, r)
 		} else {
 			http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
 		}
 	case strings.HasSuffix(path, "/rating"):
 		if r.Method == http.MethodGet {
-			handleStoryMyRating(w, r)
+			controller.HandleStoryMyRating(w, r)
 		} else {
 			http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
 		}
 	case path != "" && !strings.Contains(path, "/"):
 		if r.Method == http.MethodGet {
-			handleStoryDetail(w, r)
+			controller.HandleStoryDetail(w, r)
 		} else {
 			http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
 		}
@@ -435,25 +380,24 @@ func handleStoriesSlash(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// handleChapters: POST /api/chapters/{id}/like, POST /api/chapters/{id}/comment, GET /api/chapters/{id}/comments
 func handleChapters(w http.ResponseWriter, r *http.Request) {
 	path := strings.TrimPrefix(r.URL.Path, "/api/chapters/")
 	switch {
 	case strings.HasSuffix(path, "/like"):
 		if r.Method == http.MethodPost {
-			requireAuth(handleChapterLike)(w, r)
+			controller.RequireAuth(controller.HandleChapterLike)(w, r)
 		} else {
 			http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
 		}
 	case strings.HasSuffix(path, "/comment"):
 		if r.Method == http.MethodPost {
-			requireAuth(handleChapterComment)(w, r)
+			controller.RequireAuth(controller.HandleChapterComment)(w, r)
 		} else {
 			http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
 		}
 	case strings.HasSuffix(path, "/comments"):
 		if r.Method == http.MethodGet {
-			handleChapterCommentsList(w, r)
+			controller.HandleChapterCommentsList(w, r)
 		} else {
 			http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
 		}
@@ -462,7 +406,6 @@ func handleChapters(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// handleAdminStoriesSlash: PUT/DELETE /api/admin/stories/{id}
 func handleAdminStoriesSlash(w http.ResponseWriter, r *http.Request) {
 	path := strings.TrimPrefix(r.URL.Path, "/api/admin/stories/")
 	path = strings.Trim(path, "/")
@@ -470,12 +413,12 @@ func handleAdminStoriesSlash(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	h := requireAuth(requireAdmin(func(w http.ResponseWriter, r *http.Request) {
+	h := controller.RequireAuth(controller.RequireAdmin(func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
 		case http.MethodPut, http.MethodPatch:
-			handleAdminStoryUpdate(w, r)
+			controller.HandleAdminStoryUpdate(w, r)
 		case http.MethodDelete:
-			handleAdminStoryDelete(w, r)
+			controller.HandleAdminStoryDelete(w, r)
 		default:
 			http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
 		}
@@ -484,8 +427,12 @@ func handleAdminStoriesSlash(w http.ResponseWriter, r *http.Request) {
 }
 
 func serveStatic(w http.ResponseWriter, r *http.Request) {
+	dir := "view"
+	if _, err := os.Stat(dir); err != nil {
+		dir = "."
+	}
 	if r.URL.Path != "/" {
-		path := "." + r.URL.Path
+		path := dir + r.URL.Path
 		if f, err := os.Open(path); err == nil {
 			defer f.Close()
 			if st, _ := f.Stat(); st != nil && !st.IsDir() {
@@ -494,5 +441,5 @@ func serveStatic(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
-	http.FileServer(http.Dir(".")).ServeHTTP(w, r)
+	http.FileServer(http.Dir(dir)).ServeHTTP(w, r)
 }
