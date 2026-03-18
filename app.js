@@ -8,15 +8,21 @@
   const authStatus = document.getElementById("authStatus");
   const btnLogin = document.getElementById("btnLogin");
   const btnLogout = document.getElementById("btnLogout");
+  const sidebarListTitle = document.getElementById("sidebarListTitle");
+  const sidebarList = document.getElementById("sidebarList");
 
   const TOKEN_KEY = "secondme_access_token";
   const REFRESH_KEY = "secondme_refresh_token";
   const TOKEN_TIME_KEY = "secondme_token_time";
   const EXPIRES_KEY = "secondme_expires_in";
+  const USER_NAME_KEY = "secondme_user_name";
 
   let segments = [];
   let currentSuspense = "";
   let apiConfig = { clientId: "", redirectUri: "" };
+  let currentTab = "hot";
+  let currentStatus = "all";
+  let rankingList = [];
 
   function getToken() {
     return sessionStorage.getItem(TOKEN_KEY);
@@ -57,14 +63,36 @@
     return token || (await refreshAccessToken());
   }
 
-  function updateAuthUI() {
+  async function fetchSecondMeName() {
+    const token = await ensureToken();
+    if (!token) return null;
+    try {
+      const r = await fetch("/api/oauth/me", {
+        headers: { Authorization: "Bearer " + token },
+      });
+      const data = await r.json();
+      if (data.code === 0 && data.name) {
+        sessionStorage.setItem(USER_NAME_KEY, data.name);
+        return data.name;
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  async function updateAuthUI() {
     const token = getToken();
+    console.log("aaaaa");
+    console.log(token);
     if (token) {
-      authStatus.textContent = "已登录";
+      let name = sessionStorage.getItem(USER_NAME_KEY);
+      if (!name) name = await fetchSecondMeName();
+      authStatus.textContent = name ? "已登录 " + name : "已登录";
+      console.log(authStatus.textContent);
       authStatus.classList.add("ready");
       if (btnLogin) btnLogin.classList.add("hidden");
       if (btnLogout) btnLogout.classList.remove("hidden");
     } else {
+      sessionStorage.removeItem(USER_NAME_KEY);
       authStatus.textContent = "未登录";
       authStatus.classList.remove("ready");
       if (btnLogin) btnLogin.classList.remove("hidden");
@@ -77,6 +105,45 @@
       const r = await fetch("/api/config");
       apiConfig = await r.json();
     } catch (_) {}
+  }
+
+  const TAB_LABELS = { hot: "热榜", recommend: "推荐", new: "新书" };
+
+  async function fetchRankingList() {
+    if (!sidebarListTitle) return;
+    sidebarListTitle.textContent = TAB_LABELS[currentTab] || "热榜";
+    const statusParam = currentStatus === "all" ? "" : "&status=" + encodeURIComponent(currentStatus);
+    try {
+      const r = await fetch("/api/rankings/" + currentTab + "?limit=10" + statusParam);
+      const data = await r.json();
+      rankingList = (data.code === 0 && Array.isArray(data.data)) ? data.data : [];
+    } catch (_) {
+      rankingList = [];
+    }
+    renderSidebarList();
+  }
+
+  function renderSidebarList() {
+    if (!sidebarList) return;
+    sidebarList.innerHTML = "";
+    rankingList.forEach((item, i) => {
+      const rank = i + 1;
+      const li = document.createElement("li");
+      const rankClass = rank <= 3 ? "rank top3" : "rank";
+      const statusCls = item.status === "completed" ? "status-tag completed" : "status-tag";
+      const statusText = item.status === "completed" ? "已完结" : "进行中";
+      const a = document.createElement("a");
+      a.href = "#";
+      a.dataset.storyId = String(item.id);
+      a.textContent = item.title || "无标题";
+      li.innerHTML = `<span class="${rankClass}">${rank}</span>`;
+      li.appendChild(a);
+      const tag = document.createElement("span");
+      tag.className = statusCls;
+      tag.textContent = statusText;
+      li.appendChild(tag);
+      sidebarList.appendChild(li);
+    });
   }
 
   function doLogin() {
@@ -103,6 +170,7 @@
     sessionStorage.removeItem(REFRESH_KEY);
     sessionStorage.removeItem(TOKEN_TIME_KEY);
     sessionStorage.removeItem(EXPIRES_KEY);
+    sessionStorage.removeItem(USER_NAME_KEY);
     updateAuthUI();
     setStatus("已退出");
     setTimeout(() => setStatus(""), 2000);
@@ -319,9 +387,26 @@ ${instructions}
   if (btnLogin) btnLogin.addEventListener("click", doLogin);
   if (btnLogout) btnLogout.addEventListener("click", doLogout);
 
+  document.querySelectorAll(".sidebar-nav a[data-tab]").forEach((a) => {
+    a.addEventListener("click", (e) => {
+      e.preventDefault();
+      currentTab = a.dataset.tab || "hot";
+      document.querySelectorAll(".sidebar-nav a[data-tab]").forEach((x) => x.classList.remove("active"));
+      a.classList.add("active");
+      fetchRankingList();
+    });
+  });
+  document.querySelectorAll('.sidebar-status input[name="status"]').forEach((radio) => {
+    radio.addEventListener("change", () => {
+      currentStatus = radio.value || "all";
+      fetchRankingList();
+    });
+  });
+
   (async function init() {
     await loadConfig();
-    updateAuthUI();
+    await updateAuthUI();
     render();
+    await fetchRankingList();
   })();
 })();

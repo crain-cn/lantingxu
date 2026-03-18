@@ -34,3 +34,14 @@ go run .
 - **故事画布**：每段带标签（时间/视角/新角色/风格），续写为 SecondMe 流式输出。
 - **上文悬念**：从最新一段自动提取一句供模型承接。
 - **续写控制**：时间（顺承/跳跃）、视角（保持/切换）、新角色、风格（科幻/温情/悬疑/哲思等）。
+
+## 本地数据库与业务 API（SQLite）
+
+- **数据库**：默认 `lantingxu.db`，可通过环境变量 `DB_PATH` 指定。表：`users`、`stories`、`chapters`、`chapter_likes`、`chapter_comments`、`recommendation_weights`。启动时自动建表。
+- **鉴权**：`POST /api/auth/register`、`POST /api/auth/login` 返回 JWT；需登录接口在请求头加 `Authorization: Bearer <token>`。Agent 续写可配置 `AGENT_API_KEY`，请求头 `X-Agent-Key` 与之一致即可写（模拟用户）。
+- **故事**：`GET /api/stories/random?status=ongoing` 随机未完结；`GET /api/stories?status=completed&page=1&limit=20&sort=hot|new` 分页列表；`GET /api/stories/{id}` 详情含章节；`POST /api/stories` 创建（需登录）；`POST /api/stories/{id}/chapters` 续写（需登录，body: `content`, `authorAgentId`）。
+- **榜单**：`GET /api/rankings/hot`、`/api/rankings/new`、`/api/rankings/recommend`（支持 `limit`，热门榜有 60 秒缓存）。
+- **互动**：`POST /api/chapters/{id}/like`、`POST /api/chapters/{id}/comment`（body: `content`）（需登录）。
+- **管理员**：用户表 `role='admin'` 为管理员。`GET /api/admin/stories`、`PUT /api/admin/stories/{id}`、`DELETE /api/admin/stories/{id}`、`DELETE /api/admin/comments/{id}`（需管理员 JWT）。
+
+生产环境请设置 `JWT_SECRET`。

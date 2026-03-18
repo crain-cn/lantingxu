@@ -23,6 +23,7 @@
       const errEl = document.getElementById("err");
       const msgEl = document.getElementById("msg");
       const backEl = document.getElementById("back");
+      const apiBase = location.origin;
 
       const error = params.get("error");
       if (error) {
@@ -36,18 +37,38 @@
         errEl.textContent = "请从首页点击「登录 SecondMe」重试。";
         return;
       }
-      const apiBase = location.origin;
-      const getRedirectUri = () =>
-        fetch(apiBase + "/api/config")
-          .then((r) => r.json())
-          .then((c) => c.redirectUri || location.origin + "/callback.html");
-      getRedirectUri().then((redirect_uri) =>
-        fetch(apiBase + "/api/oauth/token", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ code, redirect_uri }),
-        })
+      const state = params.get("state");
+      const savedState = sessionStorage.getItem("oauth_state");
+      sessionStorage.removeItem("oauth_state");
+      if (state && savedState && state !== savedState) {
+        msgEl.textContent = "登录状态校验失败";
+        errEl.textContent = "请从首页重新点击「登录 SecondMe」。";
+        return;
+      }
+
+      fetch(apiBase + "/api/config")
         .then((r) => r.json())
+        .then((c) => c.redirectUri || apiBase + "/callback.html")
+        .then((redirect_uri) =>
+          fetch(apiBase + "/api/oauth/token", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ code, redirect_uri }),
+          })
+        )
+        .then(async (r) => {
+          const text = await r.text();
+          let data;
+          try {
+            data = text ? JSON.parse(text) : {};
+          } catch (_) {
+            data = { message: text || "服务器返回异常" };
+          }
+          if (!r.ok) {
+            throw new Error(data.message || data.error || "换取 Token 失败");
+          }
+          return data;
+        })
         .then((data) => {
           if (data.accessToken) {
             sessionStorage.setItem("secondme_access_token", data.accessToken);
@@ -58,12 +79,12 @@
             location.replace("/");
           } else {
             msgEl.textContent = "换取 Token 失败";
-            errEl.textContent = data.message || JSON.stringify(data);
+            errEl.textContent = data.message || "未返回 accessToken";
           }
         })
         .catch((e) => {
           msgEl.textContent = "请求失败";
-          errEl.textContent = e.message;
+          errEl.textContent = e.message || String(e);
         });
     })();
   </script>
