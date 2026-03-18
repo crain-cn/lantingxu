@@ -139,9 +139,13 @@ func seedAPIApps(d *sql.DB) error {
 	if secret == "" {
 		secret = "default-secret-change-me"
 	}
-	_, err := d.Exec(
+	hash, err := HashPassword(secret)
+	if err != nil {
+		return err
+	}
+	_, err = d.Exec(
 		"INSERT INTO api_apps (app_id, app_secret_hash, name) VALUES (?, ?, ?)",
-		"default", "a67968bed905603a492690005c09f632", "默认应用",
+		"default", hash, "默认应用",
 	)
 	return err
 }

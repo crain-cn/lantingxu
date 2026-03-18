@@ -108,3 +108,21 @@ func HandleJWTToken(w http.ResponseWriter, r *http.Request) {
 		"expiresIn":    7 * 24 * 3600,
 	})
 }
+
+// HandleCreateApp 创建新 API 应用，自动生成 appId、appSecret，无需认证（供 MCP create_app 等调用）。
+func HandleCreateApp(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	var body struct {
+		Name string `json:"name"`
+	}
+	_ = json.NewDecoder(r.Body).Decode(&body)
+	appId, appSecret, err := model.CreateAPIApp(body.Name)
+	if err != nil {
+		WriteJSON(w, 500, map[string]any{"code": 500, "message": err.Error()})
+		return
+	}
+	WriteJSON(w, 200, map[string]any{"code": 0, "appId": appId, "appSecret": appSecret})
+}

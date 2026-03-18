@@ -2,8 +2,11 @@ package model
 
 import (
 	"context"
+	"crypto/rand"
 	"database/sql"
+	"encoding/hex"
 	"errors"
+	"fmt"
 	"net/http"
 	"os"
 	"time"
@@ -102,18 +105,42 @@ func ValidateAppCredentials(appId, appSecret string) bool {
 	}
 	var hash string
 	err = db.QueryRow("SELECT app_secret_hash FROM api_apps WHERE app_id = ?", appId).Scan(&hash)
-	if err != nil {
+	if err != nil || hash == "" {
 		return false
 	}
-	if hash == "" {
-		return  false
-	}
-	return true
+	return checkPassword(hash, appSecret)
 }
 
 // IssueJWTForApp 为 API 应用签发 JWT（无真实用户，username 为 appId，role 为 user）。
 func IssueJWTForApp(appId string) (string, error) {
 	return IssueJWT(0, appId, "user")
+}
+
+// CreateAPIApp 创建新 API 应用，自动生成 appId 与 appSecret，写入 api_apps 表。返回明文 appId、appSecret。
+func CreateAPIApp(name string) (appId, appSecret string, err error) {
+	idBuf := make([]byte, 8)
+	if _, err = rand.Read(idBuf); err != nil {
+		return "", "", err
+	}
+	appId = "bot_" + hex.EncodeToString(idBuf)
+	secretBuf := make([]byte, 16)
+	if _, err = rand.Read(secretBuf); err != nil {
+		return "", "", err
+	}
+	appSecret = hex.EncodeToString(secretBuf)
+	hash, err := HashPassword(appSecret)
+	if err != nil {
+		return "", "", err
+	}
+	db, err := GetDB()
+	if err != nil {
+		return "", "", err
+	}
+	_, err = db.Exec("INSERT INTO api_apps (app_id, app_secret_hash, name) VALUES (?, ?, ?)", appId, hash, name)
+	if err != nil {
+		return "", "", fmt.Errorf("insert api_app: %w", err)
+	}
+	return appId, appSecret, nil
 }
 
 func AuthUser(db *sql.DB, username, password string) (id int64, role string, err error) {

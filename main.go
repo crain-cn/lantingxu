@@ -87,6 +87,7 @@ func main() {
 
 	// MCP / OpenAPI 规范接口（JWT 认证）：前缀 /api/openapi
 	http.HandleFunc(openAPIPrefix+"/auth/jwt/token", cors(controller.HandleJWTToken))
+	http.HandleFunc(openAPIPrefix+"/auth/apps", cors(controller.HandleCreateApp))
 	http.HandleFunc(openAPIPrefix+"/stories", cors(controller.RequireAuth(openAPIStripPrefix(handleStories))))
 	http.HandleFunc(openAPIPrefix+"/stories/", cors(controller.RequireAuth(openAPIStripPrefix(handleStoriesSlash))))
 	http.HandleFunc(openAPIPrefix+"/zhihu/pin", cors(controller.RequireAuth(controller.HandleZhihuPin)))

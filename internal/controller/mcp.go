@@ -45,6 +45,16 @@ type inputSchema struct {
 
 var mcpTools = []mcpTool{
 	{
+		Name:        "create_app",
+		Description: "自动创建 API 应用，生成 appId 与 appSecret，无需认证。创建后可用 get_jwt_token 换取 JWT",
+		InputSchema: inputSchema{
+			Type: "object",
+			Properties: map[string]interface{}{
+				"name": map[string]string{"type": "string", "description": "应用名称，可选"},
+			},
+		},
+	},
+	{
 		Name:        "get_jwt_token",
 		Description: "使用 appId 与 appSecret 获取 JWT，后续 tools 可传 accessToken 鉴权",
 		InputSchema: inputSchema{
@@ -226,6 +236,10 @@ func handleMCPToolsCall(backend http.Handler, outer *http.Request, params json.R
 	var body []byte
 	var method string
 	switch args.Name {
+	case "create_app":
+		method = http.MethodPost
+		path = mcpOpenAPIPrefix + "/auth/apps"
+		body = mustJSON(map[string]string{"name": str(args.Arguments["name"])})
 	case "get_jwt_token":
 		method = http.MethodPost
 		path = mcpOpenAPIPrefix + "/auth/jwt/token"
