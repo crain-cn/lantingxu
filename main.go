@@ -2,7 +2,9 @@ package main
 
 import (
 	"bytes"
+	"database/sql"
 	"encoding/json"
+	"errors"
 	"io"
 	"log"
 	"net/http"
@@ -255,6 +257,59 @@ func handleOAuthMe(w http.ResponseWriter, r *http.Request) {
 		"bio":   out.Data.Bio,
 		"avatar": out.Data.Avatar,
 	})
+}
+
+// resolveSecondMeUser 用 SecondMe access token 调 /api/secondme/user/info 校验，并在本地 find-or-create 用户，返回 (userID, username, nil) 或错误。
+func resolveSecondMeUser(accessToken string) (userID int64, username string, err error) {
+	req, err := http.NewRequest(http.MethodGet, baseURL+"/api/secondme/user/info", nil)
+	if err != nil {
+		return 0, "", err
+	}
+	req.Header.Set("Authorization", "Bearer "+accessToken)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return 0, "", err
+	}
+	defer resp.Body.Close()
+	data, _ := io.ReadAll(resp.Body)
+	var out struct {
+		Code    int `json:"code"`
+		Data   struct {
+			Name string `json:"name"`
+		} `json:"data"`
+	}
+	_ = json.Unmarshal(data, &out)
+	if out.Code != 0 {
+		return 0, "", errors.New("invalid secondme token")
+	}
+	name := out.Data.Name
+	if name == "" {
+		name = "secondme_user"
+	}
+	// 本地用户名，避免与普通注册冲突
+	username = "secondme_" + strings.ReplaceAll(strings.TrimSpace(name), " ", "_")
+	db, err := getDB()
+	if err != nil {
+		return 0, "", err
+	}
+	var id int64
+	err = db.QueryRow("SELECT id FROM users WHERE username = ?", username).Scan(&id)
+	if err == nil {
+		return id, username, nil
+	}
+	if err != sql.ErrNoRows {
+		return 0, "", err
+	}
+	hash, err := hashPassword("secondme-nologin")
+	if err != nil {
+		return 0, "", err
+	}
+	res, err := db.Exec("INSERT INTO users (username, password_hash, email, role) VALUES (?, ?, '', 'user')", username, hash)
+	if err != nil {
+		return 0, "", err
+	}
+	id, _ = res.LastInsertId()
+	return id, username, nil
 }
 
 func handleChatStream(w http.ResponseWriter, r *http.Request) {

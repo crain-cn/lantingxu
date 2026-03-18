@@ -100,6 +100,12 @@ func requireAuth(next http.HandlerFunc) http.HandlerFunc {
 				next(w, r)
 				return
 			}
+			// 非 JWT 时尝试当作 SecondMe OAuth token 校验并映射到本地用户
+			if uid, uname, err2 := resolveSecondMeUser(token); err2 == nil {
+				r = withUser(r, uid, uname, "user")
+				next(w, r)
+				return
+			}
 		}
 		// 2) Agent API Key（可选：与本地用户绑定或使用系统 Agent 用户）
 		key := r.Header.Get("X-Agent-Key")

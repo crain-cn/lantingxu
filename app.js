@@ -1,15 +1,35 @@
 (function () {
   const storyCanvas = document.getElementById("storyCanvas");
+  const storyTitleBar = document.getElementById("storyTitleBar");
+  const storyTitleText = document.getElementById("storyTitleText");
+  const storyIdLink = document.getElementById("storyIdLink");
   const suspenseText = document.getElementById("suspenseText");
-  const btnContinue = document.getElementById("btnContinue");
-  const btnReset = document.getElementById("btnReset");
+  const suspenseBox = document.getElementById("suspenseBox");
   const statusEl = document.getElementById("status");
   const newRoleInput = document.getElementById("newRoleInput");
   const authStatus = document.getElementById("authStatus");
   const btnLogin = document.getElementById("btnLogin");
   const btnLogout = document.getElementById("btnLogout");
+  const loginHint = document.getElementById("loginHint");
+  const btnLoginHint = document.getElementById("btnLoginHint");
+  const continueActions = document.getElementById("continueActions");
+  const continueArea = document.getElementById("continueArea");
+  const continueInput = document.getElementById("continueInput");
+  const btnRandomContinue = document.getElementById("btnRandomContinue");
+  const btnKeywordContinue = document.getElementById("btnKeywordContinue");
+  const btnSubmitContinue = document.getElementById("btnSubmitContinue");
+  const btnAIContinue = document.getElementById("btnAIContinue");
+  const controls = document.getElementById("controls");
   const sidebarListTitle = document.getElementById("sidebarListTitle");
   const sidebarList = document.getElementById("sidebarList");
+  const keywordModal = document.getElementById("keywordModal");
+  const keywordInput = document.getElementById("keywordInput");
+  const btnKeywordGenerate = document.getElementById("btnKeywordGenerate");
+  const btnKeywordCancel = document.getElementById("btnKeywordCancel");
+  const keywordResultWrap = document.getElementById("keywordResultWrap");
+  const keywordResultInput = document.getElementById("keywordResultInput");
+  const btnUseKeywordResult = document.getElementById("btnUseKeywordResult");
+  const btnKeywordClose = document.getElementById("btnKeywordClose");
 
   const TOKEN_KEY = "secondme_access_token";
   const REFRESH_KEY = "secondme_refresh_token";
@@ -17,8 +37,7 @@
   const EXPIRES_KEY = "secondme_expires_in";
   const USER_NAME_KEY = "secondme_user_name";
 
-  let segments = [];
-  let currentSuspense = "";
+  let currentStory = null;
   let apiConfig = { clientId: "", redirectUri: "" };
   let currentTab = "hot";
   let currentStatus = "all";
@@ -81,13 +100,10 @@
 
   async function updateAuthUI() {
     const token = getToken();
-    console.log("aaaaa");
-    console.log(token);
     if (token) {
       let name = sessionStorage.getItem(USER_NAME_KEY);
       if (!name) name = await fetchSecondMeName();
       authStatus.textContent = name ? "已登录 " + name : "已登录";
-      console.log(authStatus.textContent);
       authStatus.classList.add("ready");
       if (btnLogin) btnLogin.classList.add("hidden");
       if (btnLogout) btnLogout.classList.remove("hidden");
@@ -98,6 +114,7 @@
       if (btnLogin) btnLogin.classList.remove("hidden");
       if (btnLogout) btnLogout.classList.add("hidden");
     }
+    updateMainVisibility();
   }
 
   async function loadConfig() {
@@ -133,7 +150,7 @@
       const statusCls = item.status === "completed" ? "status-tag completed" : "status-tag";
       const statusText = item.status === "completed" ? "已完结" : "进行中";
       const a = document.createElement("a");
-      a.href = "#";
+      a.href = "#story/" + item.id;
       a.dataset.storyId = String(item.id);
       a.textContent = item.title || "无标题";
       li.innerHTML = `<span class="${rankClass}">${rank}</span>`;
@@ -195,61 +212,34 @@
   });
   syncChipActive();
 
-  function renderSegment(seg) {
-    const div = document.createElement("div");
-    div.className = "segment";
-    const meta = [];
-    if (seg.timeJump) meta.push(`时间：${seg.timeJump}`);
-    if (seg.viewpoint) meta.push(`视角：${seg.viewpoint}`);
-    if (seg.newRole) meta.push(`新角色：${seg.newRole}`);
-    if (seg.style) meta.push(`风格：${seg.style}`);
-    div.innerHTML =
-      (meta.length ? `<div class="segment-meta">${meta.map((m) => `<span class="tag">${m}</span>`).join("")}</div>` : "") +
-      `<div class="segment-text">${escapeHtml(seg.text)}</div>`;
-    return div;
-  }
-
   function escapeHtml(s) {
     const div = document.createElement("div");
     div.textContent = s;
     return div.innerHTML;
   }
 
-  function render() {
-    storyCanvas.innerHTML = "";
-    segments.forEach((seg) => storyCanvas.appendChild(renderSegment(seg)));
-    suspenseText.textContent = currentSuspense || "（暂无）";
-  }
-
   function setStatus(msg, type = "") {
+    if (!statusEl) return;
     statusEl.textContent = msg;
     statusEl.className = "status" + (type ? " " + type : "");
   }
 
-  function buildPrompt(controls) {
-    const styleLabels = { "sci-fi": "科幻", warm: "温情", mystery: "悬疑", philosophy: "哲思", any: "任意" };
-    const storyText =
-      segments.length > 0
-        ? segments.map((s) => s.text).join("\n\n")
-        : "（故事尚未开始，请从第一段写起。）";
-    const instructions = [
-      "时间：" + (controls.time === "jump" ? "跳跃" : "顺承"),
-      "视角：" + (controls.view === "switch" ? "切换" : "保持"),
-      "新角色：" + (controls.newRole || "无"),
-      "风格：" + (styleLabels[controls.style] || "任意"),
-    ].join("；");
-    return `你是一位故事续写助手。根据以下「已有故事」和「上文悬念」，按「本段要求」续写下一段。要求：承接悬念、自然连贯，只输出一段正文，不要解释或前缀。
+  function getStoryContext(story) {
+    if (!story) return "";
+    const parts = [];
+    if (story.opening) parts.push(story.opening);
+    const chapters = story.chapters || [];
+    chapters.forEach((ch) => {
+      if (ch.content) parts.push(ch.content);
+    });
+    return parts.length ? parts.join("\n\n") : "（故事尚未开始，请从第一段写起。）";
+  }
 
-【已有故事】
-${storyText}
-
-【上文悬念】
-${currentSuspense || "（无）"}
-
-【本段要求】
-${instructions}
-
-请只输出续写的一段正文：`;
+  function getLastSuspense(story) {
+    if (!story) return "";
+    const chapters = story.chapters || [];
+    const last = chapters[chapters.length - 1];
+    return last && last.content ? extractSuspense(last.content) : "";
   }
 
   function extractSuspense(newText) {
@@ -258,6 +248,244 @@ ${instructions}
     const sentences = t.match(/[^。！？]+[。！？]/g) || [];
     const last = sentences[sentences.length - 1] || t.slice(-50);
     return last.trim().slice(0, 80) + (last.length > 80 ? "…" : "");
+  }
+
+  function buildPrompt(story, options) {
+    const { keyword = "", time, view, style, newRole } = options || {};
+    const styleLabels = { "sci-fi": "科幻", warm: "温情", mystery: "悬疑", philosophy: "哲思", any: "任意" };
+    const storyText = getStoryContext(story);
+    const suspense = getLastSuspense(story);
+    const instructions = [
+      "时间：" + (time === "jump" ? "跳跃" : "顺承"),
+      "视角：" + (view === "switch" ? "切换" : "保持"),
+      "新角色：" + (newRole || "无"),
+      "风格：" + (styleLabels[style] || "任意"),
+    ].join("；");
+    let prompt = `你是一位故事续写助手。根据以下「已有故事」和「上文悬念」，续写下一段。要求：承接悬念、自然连贯，只输出一段正文，不要解释或前缀。
+
+【已有故事】
+${storyText}
+
+【上文悬念】
+${suspense || "（无）"}`;
+    if (keyword) {
+      prompt += `
+
+【本段关键词/方向】
+${keyword}`;
+    } else {
+      prompt += `
+
+【本段要求】
+${instructions}`;
+    }
+    prompt += `
+
+请只输出续写的一段正文：`;
+    return prompt;
+  }
+
+  async function fetchRandomStory() {
+    try {
+      const r = await fetch("/api/stories/random?status=ongoing");
+      const data = await r.json();
+      return (data.code === 0 && data.data) ? data.data : null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  async function fetchStoryById(id) {
+    try {
+      const r = await fetch("/api/stories/" + id);
+      const data = await r.json();
+      if (data.code === 0 && data.data) return data.data;
+      if (data.code === 404) return null;
+    } catch (_) {}
+    return null;
+  }
+
+  function renderSegment(content, meta) {
+    const div = document.createElement("div");
+    div.className = "segment";
+    div.innerHTML =
+      (meta && meta.length
+        ? `<div class="segment-meta">${meta.map((m) => `<span class="tag">${m}</span>`).join("")}</div>`
+        : "") +
+      `<div class="segment-text">${escapeHtml(content)}</div>`;
+    return div;
+  }
+
+  function renderStory(story) {
+    currentStory = story;
+    if (!storyCanvas) return;
+
+    if (storyTitleBar) {
+      if (story) {
+        storyTitleBar.classList.remove("hidden");
+        if (storyTitleText) storyTitleText.textContent = story.title || "无标题";
+        if (storyIdLink) {
+          storyIdLink.href = "#story/" + story.id;
+          storyIdLink.textContent = "#" + story.id;
+        }
+      } else {
+        storyTitleBar.classList.add("hidden");
+      }
+    }
+
+    storyCanvas.innerHTML = "";
+    if (!story) {
+      storyCanvas.innerHTML = "<p class=\"segment-text\" style=\"color:var(--ink-dim)\">暂无未完成的故事；登录后可参与续写或创作新故事。</p>";
+      if (suspenseBox) suspenseBox.classList.add("hidden");
+      updateMainVisibility();
+      return;
+    }
+
+    if (story.opening) {
+      storyCanvas.appendChild(renderSegment(story.opening, []));
+    }
+    const chapters = story.chapters || [];
+    chapters.forEach((ch) => {
+      storyCanvas.appendChild(renderSegment(ch.content || "", []));
+    });
+
+    if (suspenseBox) {
+      const suspense = getLastSuspense(story);
+      if (suspense) {
+        suspenseBox.classList.remove("hidden");
+        if (suspenseText) suspenseText.textContent = suspense;
+      } else {
+        suspenseBox.classList.add("hidden");
+      }
+    }
+
+    if (continueInput) continueInput.value = "";
+    updateMainVisibility();
+  }
+
+  function updateMainVisibility() {
+    const loggedIn = !!getToken();
+    if (loginHint) loginHint.classList.toggle("hidden", loggedIn);
+    if (btnLoginHint) btnLoginHint.onclick = () => doLogin();
+    if (continueActions) continueActions.classList.toggle("hidden", !loggedIn);
+    const showContinueArea = loggedIn && currentStory && currentStory.status !== "completed";
+    if (continueArea) continueArea.classList.toggle("hidden", !showContinueArea);
+    if (controls) controls.classList.toggle("hidden", !showContinueArea);
+  }
+
+  async function loadStoryFromHash() {
+    const hash = (location.hash || "").replace(/^#\/?/, "");
+    const m = hash.match(/^story\/(\d+)$/);
+    if (m) {
+      const story = await fetchStoryById(m[1]);
+      renderStory(story);
+      if (story && continueArea && !continueArea.classList.contains("hidden")) {
+        continueInput.focus();
+      }
+      return;
+    }
+    const story = await fetchRandomStory();
+    renderStory(story);
+  }
+
+  async function onRandomContinue() {
+    const token = await ensureToken();
+    if (!token) {
+      setStatus("请先登录", "error");
+      return;
+    }
+    setStatus("正在获取随机故事…", "generating");
+    const story = await fetchRandomStory();
+    setStatus("", "");
+    if (!story) {
+      setStatus("暂无未完成的故事", "error");
+      return;
+    }
+    renderStory(story);
+    location.hash = "#story/" + story.id;
+    if (continueInput) {
+      continueInput.value = "";
+      continueInput.focus();
+    }
+    setStatus("已加载，可在下方续写");
+    setTimeout(() => setStatus(""), 2000);
+  }
+
+  async function onSubmitContinue() {
+    if (!currentStory) return;
+    const token = await ensureToken();
+    if (!token) {
+      setStatus("请先登录", "error");
+      return;
+    }
+    const content = (continueInput && continueInput.value || "").trim();
+    if (!content) {
+      setStatus("请输入续写内容", "error");
+      return;
+    }
+    btnSubmitContinue.disabled = true;
+    setStatus("提交中…", "generating");
+    try {
+      const r = await fetch("/api/stories/" + currentStory.id + "/chapters", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: "Bearer " + token,
+        },
+        body: JSON.stringify({ content }),
+      });
+      const data = await r.json().catch(() => ({}));
+      if (r.status === 401) {
+        setStatus("登录已过期，请重新登录", "error");
+        btnSubmitContinue.disabled = false;
+        return;
+      }
+      if (data.code !== 0) {
+        setStatus(data.message || "提交失败", "error");
+        btnSubmitContinue.disabled = false;
+        return;
+      }
+      continueInput.value = "";
+      const updated = await fetchStoryById(currentStory.id);
+      renderStory(updated);
+      setStatus("续写已提交");
+      setTimeout(() => setStatus(""), 2000);
+    } catch (e) {
+      setStatus("请求失败：" + e.message, "error");
+    }
+    btnSubmitContinue.disabled = false;
+  }
+
+  async function onAIContinue() {
+    if (!currentStory) return;
+    const token = await ensureToken();
+    if (!token) {
+      setStatus("请先登录", "error");
+      return;
+    }
+    const controlsOpt = getControls();
+    const prompt = buildPrompt(currentStory, controlsOpt);
+    btnAIContinue.disabled = true;
+    setStatus("正在生成…", "generating");
+    const result = await streamSecondMeChat(prompt);
+    if (!result.ok) {
+      setStatus(result.error || "生成失败", "error");
+      btnAIContinue.disabled = false;
+      return;
+    }
+    let streamedText = "";
+    if (continueInput) continueInput.value = "";
+    try {
+      for await (const chunk of parseSSE(result.stream)) {
+        streamedText += chunk;
+        if (continueInput) continueInput.value = streamedText;
+      }
+    } catch (e) {
+      setStatus("流式读取异常：" + e.message, "error");
+    }
+    btnAIContinue.disabled = false;
+    setStatus(streamedText.trim() ? "已生成，可编辑后提交" : "未生成内容");
+    setTimeout(() => setStatus(""), 3000);
   }
 
   async function streamSecondMeChat(message) {
@@ -307,85 +535,110 @@ ${instructions}
     };
   }
 
-  async function onContinue() {
-    const controls = getControls();
+  function openKeywordModal() {
+    if (!currentStory) return;
+    if (keywordModal) keywordModal.classList.remove("hidden");
+    if (keywordInput) {
+      keywordInput.value = "";
+      keywordInput.focus();
+    }
+    if (keywordResultWrap) keywordResultWrap.classList.add("hidden");
+    if (keywordResultInput) keywordResultInput.value = "";
+  }
+
+  function closeKeywordModal() {
+    if (keywordModal) keywordModal.classList.add("hidden");
+  }
+
+  async function onKeywordGenerate() {
+    const keyword = (keywordInput && keywordInput.value || "").trim();
+    if (!keyword) {
+      setStatus("请输入关键词", "error");
+      return;
+    }
     const token = await ensureToken();
     if (!token) {
-      setStatus("请先登录 SecondMe", "error");
+      setStatus("请先登录", "error");
       return;
     }
-    btnContinue.disabled = true;
-    setStatus("正在续写…", "generating");
-
-    const prompt = buildPrompt(controls);
+    const prompt = buildPrompt(currentStory, { keyword });
+    btnKeywordGenerate.disabled = true;
+    if (keywordResultInput) keywordResultInput.value = "正在生成…";
+    if (keywordResultWrap) keywordResultWrap.classList.remove("hidden");
     const result = await streamSecondMeChat(prompt);
     if (!result.ok) {
-      setStatus(result.error || "续写失败", "error");
-      btnContinue.disabled = false;
+      if (keywordResultInput) keywordResultInput.value = "";
+      setStatus(result.error || "生成失败", "error");
+      btnKeywordGenerate.disabled = false;
       return;
     }
-
-    const styleLabels = { "sci-fi": "科幻", warm: "温情", mystery: "悬疑", philosophy: "哲思", any: "" };
     let streamedText = "";
-    const segmentDiv = document.createElement("div");
-    segmentDiv.className = "segment segment-streaming";
-    segmentDiv.innerHTML =
-      (controls.time === "jump" || controls.view === "switch" || controls.newRole || controls.style !== "any"
-        ? `<div class="segment-meta">${[
-            controls.time === "jump" && "时间：跳跃",
-            controls.view === "switch" && "视角：切换",
-            controls.newRole && "新角色：" + controls.newRole,
-            styleLabels[controls.style] && "风格：" + styleLabels[controls.style],
-          ]
-            .filter(Boolean)
-            .map((m) => `<span class="tag">${m}</span>`)
-            .join("")}</div>`
-        : "") + '<div class="segment-text"></div>';
-    storyCanvas.appendChild(segmentDiv);
-    const textEl = segmentDiv.querySelector(".segment-text");
-
     try {
       for await (const chunk of parseSSE(result.stream)) {
         streamedText += chunk;
-        textEl.textContent = streamedText;
-        storyCanvas.scrollTop = storyCanvas.scrollHeight;
+        if (keywordResultInput) keywordResultInput.value = streamedText;
       }
     } catch (e) {
-      setStatus("流式读取异常：" + e.message, "error");
+      if (keywordResultInput) keywordResultInput.value = "生成异常：" + e.message;
     }
-
-    const finalText = streamedText.trim() || "（未生成内容）";
-    segments.push({
-      text: finalText,
-      timeJump: controls.time === "jump" ? "跳跃" : undefined,
-      viewpoint: controls.view === "switch" ? "切换" : undefined,
-      newRole: controls.newRole || undefined,
-      style: styleLabels[controls.style] || undefined,
-    });
-    currentSuspense = extractSuspense(finalText);
-
-    newRoleInput.value = "";
-    document.querySelector('input[name="view"][value="keep"]')?.click();
-    syncChipActive();
-    render();
-    btnContinue.disabled = false;
-    setStatus("已续写一段");
-    setTimeout(() => setStatus(""), 2000);
+    btnKeywordGenerate.disabled = false;
   }
 
-  function onReset() {
-    if (segments.length && !confirm("确定要清空当前故事并重新开始吗？")) return;
-    segments = [];
-    currentSuspense = "";
-    render();
-    setStatus("已重新开始");
-    setTimeout(() => setStatus(""), 2000);
+  async function onUseKeywordResult() {
+    const content = (keywordResultInput && keywordResultInput.value || "").trim();
+    if (!content) {
+      setStatus("无内容可提交", "error");
+      return;
+    }
+    if (!currentStory) return;
+    const token = await ensureToken();
+    if (!token) {
+      setStatus("请先登录", "error");
+      return;
+    }
+    btnUseKeywordResult.disabled = true;
+    setStatus("提交中…", "generating");
+    try {
+      const r = await fetch("/api/stories/" + currentStory.id + "/chapters", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: "Bearer " + token,
+        },
+        body: JSON.stringify({ content, authorAgentId: "keyword" }),
+      });
+      const data = await r.json().catch(() => ({}));
+      if (r.status === 401) {
+        setStatus("登录已过期，请重新登录", "error");
+        btnUseKeywordResult.disabled = false;
+        return;
+      }
+      if (data.code !== 0) {
+        setStatus(data.message || "提交失败", "error");
+        btnUseKeywordResult.disabled = false;
+        return;
+      }
+      closeKeywordModal();
+      const updated = await fetchStoryById(currentStory.id);
+      renderStory(updated);
+      setStatus("续写已提交");
+      setTimeout(() => setStatus(""), 2000);
+    } catch (e) {
+      setStatus("请求失败：" + e.message, "error");
+    }
+    btnUseKeywordResult.disabled = false;
   }
 
-  btnContinue.addEventListener("click", onContinue);
-  btnReset.addEventListener("click", onReset);
   if (btnLogin) btnLogin.addEventListener("click", doLogin);
   if (btnLogout) btnLogout.addEventListener("click", doLogout);
+  if (btnRandomContinue) btnRandomContinue.addEventListener("click", onRandomContinue);
+  if (btnKeywordContinue) btnKeywordContinue.addEventListener("click", openKeywordModal);
+  if (btnSubmitContinue) btnSubmitContinue.addEventListener("click", onSubmitContinue);
+  if (btnAIContinue) btnAIContinue.addEventListener("click", onAIContinue);
+  if (btnKeywordCancel) btnKeywordCancel.addEventListener("click", closeKeywordModal);
+  if (btnKeywordClose) btnKeywordClose.addEventListener("click", closeKeywordModal);
+  if (btnKeywordGenerate) btnKeywordGenerate.addEventListener("click", onKeywordGenerate);
+  if (btnUseKeywordResult) btnUseKeywordResult.addEventListener("click", onUseKeywordResult);
 
   document.querySelectorAll(".sidebar-nav a[data-tab]").forEach((a) => {
     a.addEventListener("click", (e) => {
@@ -403,10 +656,12 @@ ${instructions}
     });
   });
 
+  window.addEventListener("hashchange", loadStoryFromHash);
+
   (async function init() {
     await loadConfig();
     await updateAuthUI();
-    render();
+    await loadStoryFromHash();
     await fetchRankingList();
   })();
 })();

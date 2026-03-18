@@ -160,14 +160,19 @@ func handleStoriesList(w http.ResponseWriter, r *http.Request) {
 
 	var list []map[string]any
 	for rows.Next() {
-		var id, creatorID int64
+		var id int64
+		var creatorID sql.NullInt64
 		var title, opening, tags, status string
 		var likeCount, commentCount, chapterCount int
 		var createdAt, updatedAt string
 		_ = rows.Scan(&id, &title, &opening, &tags, &status, &creatorID, &likeCount, &commentCount, &chapterCount, &createdAt, &updatedAt)
+		creatorUserId := int64(0)
+		if creatorID.Valid {
+			creatorUserId = creatorID.Int64
+		}
 		list = append(list, map[string]any{
 			"id": id, "title": title, "opening": opening, "tags": tags, "status": status,
-			"creatorUserId": creatorID, "likeCount": likeCount, "commentCount": commentCount, "chapterCount": chapterCount,
+			"creatorUserId": creatorUserId, "likeCount": likeCount, "commentCount": commentCount, "chapterCount": chapterCount,
 			"createdAt": createdAt, "updatedAt": updatedAt,
 		})
 	}
@@ -207,7 +212,7 @@ func handleStoryDetail(w http.ResponseWriter, r *http.Request) {
 
 func getStoryByID(db *sql.DB, id int64, withChapters bool) (map[string]any, error) {
 	var title, opening, tags, status string
-	var creatorID int64
+	var creatorID sql.NullInt64
 	var likeCount, commentCount, chapterCount int
 	var createdAt, updatedAt string
 	err := db.QueryRow(`SELECT title, opening, tags, status, creator_user_id, like_count, comment_count, chapter_count, created_at, updated_at FROM stories WHERE id = ?`, id).Scan(
@@ -215,9 +220,13 @@ func getStoryByID(db *sql.DB, id int64, withChapters bool) (map[string]any, erro
 	if err != nil {
 		return nil, err
 	}
+	creatorUserId := int64(0)
+	if creatorID.Valid {
+		creatorUserId = creatorID.Int64
+	}
 	out := map[string]any{
 		"id": id, "title": title, "opening": opening, "tags": tags, "status": status,
-		"creatorUserId": creatorID, "likeCount": likeCount, "commentCount": commentCount, "chapterCount": chapterCount,
+		"creatorUserId": creatorUserId, "likeCount": likeCount, "commentCount": commentCount, "chapterCount": chapterCount,
 		"createdAt": createdAt, "updatedAt": updatedAt,
 	}
 	if !withChapters {
@@ -368,15 +377,15 @@ func handleRankingsHot(w http.ResponseWriter, r *http.Request) {
 	if l, _ := strconv.Atoi(r.URL.Query().Get("limit")); l > 0 && l <= 100 {
 		limit = l
 	}
-	sql := `SELECT id, title, opening, tags, status, creator_user_id, like_count, comment_count, chapter_count, created_at FROM stories WHERE 1=1`
+	query := `SELECT id, title, opening, tags, status, creator_user_id, like_count, comment_count, chapter_count, created_at FROM stories WHERE 1=1`
 	args := []any{}
 	if status == "completed" || status == "ongoing" {
-		sql += ` AND status = ?`
+		query += ` AND status = ?`
 		args = append(args, status)
 	}
-	sql += ` ORDER BY (like_count + comment_count + chapter_count) DESC, id DESC LIMIT ?`
+	query += ` ORDER BY (like_count + comment_count + chapter_count) DESC, id DESC LIMIT ?`
 	args = append(args, limit)
-	rows, err := db.Query(sql, args...)
+	rows, err := db.Query(query, args...)
 	if err != nil {
 		writeJSON(w, 500, map[string]any{"code": 500, "message": err.Error()})
 		return
@@ -384,13 +393,18 @@ func handleRankingsHot(w http.ResponseWriter, r *http.Request) {
 	defer rows.Close()
 	var list []map[string]any
 	for rows.Next() {
-		var id, creatorID int64
+		var id int64
+		var creatorID sql.NullInt64
 		var title, opening, tags, status, createdAt string
 		var lc, cc, chc int
 		_ = rows.Scan(&id, &title, &opening, &tags, &status, &creatorID, &lc, &cc, &chc, &createdAt)
+		creatorUserId := int64(0)
+		if creatorID.Valid {
+			creatorUserId = creatorID.Int64
+		}
 		list = append(list, map[string]any{
 			"id": id, "title": title, "opening": opening, "tags": tags, "status": status,
-			"creatorUserId": creatorID, "likeCount": lc, "commentCount": cc, "chapterCount": chc, "createdAt": createdAt,
+			"creatorUserId": creatorUserId, "likeCount": lc, "commentCount": cc, "chapterCount": chc, "createdAt": createdAt,
 		})
 	}
 	if useCache {
@@ -417,15 +431,15 @@ func handleRankingsNew(w http.ResponseWriter, r *http.Request) {
 		limit = l
 	}
 	status := strings.TrimSpace(r.URL.Query().Get("status"))
-	sql := `SELECT id, title, opening, tags, status, creator_user_id, like_count, comment_count, chapter_count, created_at FROM stories WHERE 1=1`
+	query := `SELECT id, title, opening, tags, status, creator_user_id, like_count, comment_count, chapter_count, created_at FROM stories WHERE 1=1`
 	args := []any{}
 	if status == "completed" || status == "ongoing" {
-		sql += ` AND status = ?`
+		query += ` AND status = ?`
 		args = append(args, status)
 	}
-	sql += ` ORDER BY created_at DESC LIMIT ?`
+	query += ` ORDER BY created_at DESC LIMIT ?`
 	args = append(args, limit)
-	rows, err := db.Query(sql, args...)
+	rows, err := db.Query(query, args...)
 	if err != nil {
 		writeJSON(w, 500, map[string]any{"code": 500, "message": err.Error()})
 		return
@@ -433,13 +447,18 @@ func handleRankingsNew(w http.ResponseWriter, r *http.Request) {
 	defer rows.Close()
 	var list []map[string]any
 	for rows.Next() {
-		var id, creatorID int64
+		var id int64
+		var creatorID sql.NullInt64
 		var title, opening, tags, status, createdAt string
 		var lc, cc, chc int
 		_ = rows.Scan(&id, &title, &opening, &tags, &status, &creatorID, &lc, &cc, &chc, &createdAt)
+		creatorUserId := int64(0)
+		if creatorID.Valid {
+			creatorUserId = creatorID.Int64
+		}
 		list = append(list, map[string]any{
 			"id": id, "title": title, "opening": opening, "tags": tags, "status": status,
-			"creatorUserId": creatorID, "likeCount": lc, "commentCount": cc, "chapterCount": chc, "createdAt": createdAt,
+			"creatorUserId": creatorUserId, "likeCount": lc, "commentCount": cc, "chapterCount": chc, "createdAt": createdAt,
 		})
 	}
 	writeJSON(w, 200, map[string]any{"code": 0, "data": list})
@@ -460,7 +479,7 @@ func handleRankingsRecommend(w http.ResponseWriter, r *http.Request) {
 		limit = l
 	}
 	status := strings.TrimSpace(r.URL.Query().Get("status"))
-	sql := `
+	query := `
 		SELECT s.id, s.title, s.opening, s.tags, s.status, s.creator_user_id, s.like_count, s.comment_count, s.chapter_count, s.created_at,
 		       COALESCE(SUM(r.score), 0) as rec_score
 		FROM stories s
@@ -468,12 +487,12 @@ func handleRankingsRecommend(w http.ResponseWriter, r *http.Request) {
 		WHERE 1=1`
 	args := []any{}
 	if status == "completed" || status == "ongoing" {
-		sql += ` AND s.status = ?`
+		query += ` AND s.status = ?`
 		args = append(args, status)
 	}
-	sql += ` GROUP BY s.id ORDER BY rec_score DESC, s.created_at DESC LIMIT ?`
+	query += ` GROUP BY s.id ORDER BY rec_score DESC, s.created_at DESC LIMIT ?`
 	args = append(args, limit)
-	rows, err := db.Query(sql, args...)
+	rows, err := db.Query(query, args...)
 	if err != nil {
 		writeJSON(w, 500, map[string]any{"code": 500, "message": err.Error()})
 		return
@@ -481,14 +500,19 @@ func handleRankingsRecommend(w http.ResponseWriter, r *http.Request) {
 	defer rows.Close()
 	var list []map[string]any
 	for rows.Next() {
-		var id, creatorID int64
+		var id int64
+		var creatorID sql.NullInt64
 		var title, opening, tags, status, createdAt string
 		var lc, cc, chc int
 		var recScore float64
 		_ = rows.Scan(&id, &title, &opening, &tags, &status, &creatorID, &lc, &cc, &chc, &createdAt, &recScore)
+		creatorUserId := int64(0)
+		if creatorID.Valid {
+			creatorUserId = creatorID.Int64
+		}
 		list = append(list, map[string]any{
 			"id": id, "title": title, "opening": opening, "tags": tags, "status": status,
-			"creatorUserId": creatorID, "likeCount": lc, "commentCount": cc, "chapterCount": chc, "createdAt": createdAt, "recommendScore": recScore,
+			"creatorUserId": creatorUserId, "likeCount": lc, "commentCount": cc, "chapterCount": chc, "createdAt": createdAt, "recommendScore": recScore,
 		})
 	}
 	// 若结果太少，用随机新书补足（简化版“个性化”）
@@ -508,15 +532,20 @@ func handleRankingsRecommend(w http.ResponseWriter, r *http.Request) {
 				seen[int64(s["id"].(int64))] = true
 			}
 			for rows2.Next() {
-				var id, creatorID int64
+				var id int64
+				var creatorID sql.NullInt64
 				var title, opening, tags, status, createdAt string
 				var lc, cc, chc int
 				_ = rows2.Scan(&id, &title, &opening, &tags, &status, &creatorID, &lc, &cc, &chc, &createdAt)
+				creatorUserId := int64(0)
+				if creatorID.Valid {
+					creatorUserId = creatorID.Int64
+				}
 				if !seen[id] {
 					seen[id] = true
 					list = append(list, map[string]any{
 						"id": id, "title": title, "opening": opening, "tags": tags, "status": status,
-						"creatorUserId": creatorID, "likeCount": lc, "commentCount": cc, "chapterCount": chc, "createdAt": createdAt,
+						"creatorUserId": creatorUserId, "likeCount": lc, "commentCount": cc, "chapterCount": chc, "createdAt": createdAt,
 					})
 				}
 			}
@@ -638,13 +667,18 @@ func handleAdminStoriesList(w http.ResponseWriter, r *http.Request) {
 	defer rows.Close()
 	var list []map[string]any
 	for rows.Next() {
-		var id, creatorID int64
+		var id int64
+		var creatorID sql.NullInt64
 		var title, opening, tags, status, createdAt string
 		var lc, cc, chc int
 		_ = rows.Scan(&id, &title, &opening, &tags, &status, &creatorID, &lc, &cc, &chc, &createdAt)
+		creatorUserId := int64(0)
+		if creatorID.Valid {
+			creatorUserId = creatorID.Int64
+		}
 		list = append(list, map[string]any{
 			"id": id, "title": title, "opening": opening, "tags": tags, "status": status,
-			"creatorUserId": creatorID, "likeCount": lc, "commentCount": cc, "chapterCount": chc, "createdAt": createdAt,
+			"creatorUserId": creatorUserId, "likeCount": lc, "commentCount": cc, "chapterCount": chc, "createdAt": createdAt,
 		})
 	}
 	writeJSON(w, 200, map[string]any{"code": 0, "data": list, "page": page, "limit": limit})
