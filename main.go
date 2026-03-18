@@ -423,7 +423,7 @@ func handleStoriesSlash(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// handleChapters: POST /api/chapters/{id}/like, POST /api/chapters/{id}/comment
+// handleChapters: POST /api/chapters/{id}/like, POST /api/chapters/{id}/comment, GET /api/chapters/{id}/comments
 func handleChapters(w http.ResponseWriter, r *http.Request) {
 	path := strings.TrimPrefix(r.URL.Path, "/api/chapters/")
 	switch {
@@ -436,6 +436,12 @@ func handleChapters(w http.ResponseWriter, r *http.Request) {
 	case strings.HasSuffix(path, "/comment"):
 		if r.Method == http.MethodPost {
 			requireAuth(handleChapterComment)(w, r)
+		} else {
+			http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
+		}
+	case strings.HasSuffix(path, "/comments"):
+		if r.Method == http.MethodGet {
+			handleChapterCommentsList(w, r)
 		} else {
 			http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
 		}

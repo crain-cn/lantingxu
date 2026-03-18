@@ -261,7 +261,54 @@
     }
     .segment-meta span { margin-right: 0.75rem; }
     .segment-meta .tag { color: var(--accent); }
-    .segment-text { text-align: justify; text-indent: 2em; }
+    .segment-meta .tag.agent { color: var(--suspense); }
+    .segment-text { text-align: justify; text-indent: 2em; white-space: pre-wrap; }
+    .segment-actions {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      margin-top: 0.6rem;
+      font-size: 0.82rem;
+      color: var(--ink-dim);
+    }
+    .segment-actions button {
+      background: none;
+      border: none;
+      color: var(--accent);
+      cursor: pointer;
+      padding: 0.2rem 0;
+      font-family: inherit;
+      font-size: inherit;
+    }
+    .segment-actions button:hover { color: var(--ink); text-decoration: underline; }
+    .segment-actions button:disabled { color: var(--ink-dim); cursor: default; text-decoration: none; }
+    .segment-comments {
+      margin-top: 0.75rem;
+      padding-top: 0.75rem;
+      border-top: 1px solid var(--paper-edge);
+    }
+    .comment-list { list-style: none; padding: 0; margin: 0 0 0.75rem; }
+    .comment-item {
+      font-size: 0.85rem;
+      color: var(--ink-dim);
+      margin-bottom: 0.5rem;
+      padding: 0.35rem 0;
+    }
+    .comment-item .comment-meta { color: var(--accent); margin-right: 0.5rem; }
+    .comment-form textarea {
+      width: 100%;
+      min-height: 60px;
+      padding: 0.5rem;
+      margin-bottom: 0.5rem;
+      background: var(--paper);
+      border: 1px solid var(--paper-edge);
+      border-radius: 2px;
+      color: var(--ink);
+      font-family: inherit;
+      font-size: 0.88rem;
+      resize: vertical;
+    }
+    .comment-form textarea:focus { outline: none; border-color: var(--accent); }
     .suspense-box {
       background: linear-gradient(135deg, rgba(139, 115, 85, 0.12) 0%, rgba(139, 115, 85, 0.06) 100%);
       border-left: 3px solid var(--suspense);
@@ -369,6 +416,8 @@
     .story-title-bar .story-title-text { color: var(--accent); font-weight: 600; }
     .story-title-bar .story-id-link { color: var(--ink-dim); text-decoration: none; font-size: 0.8rem; }
     .story-title-bar .story-id-link:hover { color: var(--accent); }
+    .story-title-bar .story-stats { margin-left: auto; font-size: 0.82rem; color: var(--ink-dim); }
+    .story-title-bar .story-status-tag { font-size: 0.7rem; padding: 0.15rem 0.4rem; border-radius: 2px; background: rgba(125, 157, 122, 0.25); color: var(--success); margin-left: 0.25rem; }
     .login-hint {
       background: var(--accent-glow);
       border: 1px solid var(--accent-soft);
@@ -760,7 +809,7 @@
       </div>
     </header>
 
-    <p class="story-title-bar hidden" id="storyTitleBar"><span class="story-title-text" id="storyTitleText"></span><a href="#" class="story-id-link" id="storyIdLink"></a></p>
+    <p class="story-title-bar hidden" id="storyTitleBar"><span class="story-title-text" id="storyTitleText"></span><a href="#" class="story-id-link" id="storyIdLink"></a><span class="story-stats" id="storyStats"></span></p>
     <main class="story-canvas" id="storyCanvas" role="log" aria-live="polite"></main>
 
     <section class="suspense-box hidden" id="suspenseBox" aria-label="上文悬念">
@@ -771,6 +820,7 @@
       <div class="action-row">
         <button type="button" class="btn btn-primary" id="btnRandomContinue">随机续写</button>
         <button type="button" class="btn btn-ghost" id="btnKeywordContinue">关键词续写</button>
+        <button type="button" class="btn btn-ghost" id="btnNewOpening">开篇新作</button>
       </div>
     </section>
 
@@ -831,6 +881,27 @@
         <div class="modal-actions">
           <button type="button" class="btn btn-primary" id="btnUseKeywordResult">使用并提交</button>
           <button type="button" class="btn btn-ghost" id="btnKeywordClose">关闭</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="modal-overlay hidden" id="newOpeningModal" aria-hidden="true">
+    <div class="modal" role="dialog" aria-label="开篇新作">
+      <h3 class="modal-title">开篇新作</h3>
+      <p class="modal-desc">可选题材或关键词，由 Agent 生成全新故事开篇；编辑后可创建为新故事。</p>
+      <input type="text" class="modal-keyword-input" id="newOpeningThemeInput" placeholder="例如：古风悬疑、都市温情、科幻（可选）" maxlength="80" />
+      <div class="modal-actions">
+        <button type="button" class="btn btn-ghost" id="btnNewOpeningGenerate">生成</button>
+        <button type="button" class="btn btn-ghost" id="btnNewOpeningCancel">取消</button>
+      </div>
+      <div class="keyword-result-wrap hidden" id="newOpeningResultWrap">
+        <label>标题</label>
+        <input type="text" class="modal-keyword-input" id="newOpeningTitleInput" placeholder="故事标题" maxlength="120" />
+        <label>开篇内容（可编辑）</label>
+        <textarea class="keyword-result-input" id="newOpeningContentInput" rows="6"></textarea>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-primary" id="btnCreateNewStory">创建故事</button>
+          <button type="button" class="btn btn-ghost" id="btnNewOpeningClose">关闭</button>
         </div>
       </div>
     </div>

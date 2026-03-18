@@ -213,10 +213,12 @@ func handleStoryDetail(w http.ResponseWriter, r *http.Request) {
 func getStoryByID(db *sql.DB, id int64, withChapters bool) (map[string]any, error) {
 	var title, opening, tags, status string
 	var creatorID sql.NullInt64
+	var creatorUsername string
 	var likeCount, commentCount, chapterCount int
 	var createdAt, updatedAt string
-	err := db.QueryRow(`SELECT title, opening, tags, status, creator_user_id, like_count, comment_count, chapter_count, created_at, updated_at FROM stories WHERE id = ?`, id).Scan(
-		&title, &opening, &tags, &status, &creatorID, &likeCount, &commentCount, &chapterCount, &createdAt, &updatedAt)
+	err := db.QueryRow(`SELECT s.title, s.opening, s.tags, s.status, s.creator_user_id, s.like_count, s.comment_count, s.chapter_count, s.created_at, s.updated_at,
+		COALESCE(u.username, '') FROM stories s LEFT JOIN users u ON s.creator_user_id = u.id WHERE s.id = ?`, id).Scan(
+		&title, &opening, &tags, &status, &creatorID, &likeCount, &commentCount, &chapterCount, &createdAt, &updatedAt, &creatorUsername)
 	if err != nil {
 		return nil, err
 	}
@@ -226,13 +228,16 @@ func getStoryByID(db *sql.DB, id int64, withChapters bool) (map[string]any, erro
 	}
 	out := map[string]any{
 		"id": id, "title": title, "opening": opening, "tags": tags, "status": status,
-		"creatorUserId": creatorUserId, "likeCount": likeCount, "commentCount": commentCount, "chapterCount": chapterCount,
+		"creatorUserId": creatorUserId, "creatorUsername": creatorUsername, "likeCount": likeCount, "commentCount": commentCount, "chapterCount": chapterCount,
 		"createdAt": createdAt, "updatedAt": updatedAt,
 	}
 	if !withChapters {
 		return out, nil
 	}
-	rows, err := db.Query(`SELECT id, seq, content, author_user_id, author_agent_id, created_at FROM chapters WHERE story_id = ? ORDER BY seq`, id)
+	rows, err := db.Query(`SELECT c.id, c.seq, c.content, c.author_user_id, c.author_agent_id, c.created_at,
+		(SELECT COUNT(*) FROM chapter_likes WHERE chapter_id = c.id) AS like_count,
+		COALESCE(u.username, '') AS author_username
+		FROM chapters c LEFT JOIN users u ON c.author_user_id = u.id WHERE c.story_id = ? ORDER BY c.seq`, id)
 	if err != nil {
 		return out, nil
 	}
@@ -240,16 +245,17 @@ func getStoryByID(db *sql.DB, id int64, withChapters bool) (map[string]any, erro
 	var chapters []map[string]any
 	for rows.Next() {
 		var chID, seq int64
-		var content, agentID string
+		var content, agentID, authorUsername string
 		var authorID sql.NullInt64
 		var chCreated string
-		_ = rows.Scan(&chID, &seq, &content, &authorID, &agentID, &chCreated)
+		var likeCount int
+		_ = rows.Scan(&chID, &seq, &content, &authorID, &agentID, &chCreated, &likeCount, &authorUsername)
 		uid := int64(0)
 		if authorID.Valid {
 			uid = authorID.Int64
 		}
 		chapters = append(chapters, map[string]any{
-			"id": chID, "seq": seq, "content": content, "authorUserId": uid, "authorAgentId": agentID, "createdAt": chCreated,
+			"id": chID, "seq": seq, "content": content, "authorUserId": uid, "authorUsername": authorUsername, "authorAgentId": agentID, "createdAt": chCreated, "likeCount": likeCount,
 		})
 	}
 	out["chapters"] = chapters
@@ -638,6 +644,50 @@ func handleChapterComment(w http.ResponseWriter, r *http.Request) {
 	}
 	cid, _ := res.LastInsertId()
 	writeJSON(w, 200, map[string]any{"code": 0, "data": map[string]any{"id": cid, "chapterId": chapterID}})
+}
+
+func handleChapterCommentsList(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	path := strings.TrimPrefix(r.URL.Path, "/api/chapters/")
+	path = strings.TrimSuffix(path, "/comments")
+	path = strings.Trim(path, "/")
+	chapterID, err := strconv.ParseInt(path, 10, 64)
+	if err != nil || chapterID <= 0 {
+		writeJSON(w, 400, map[string]any{"code": 400, "message": "无效章节 id"})
+		return
+	}
+	db, err := getDB()
+	if err != nil {
+		writeJSON(w, 500, map[string]any{"code": 500, "message": err.Error()})
+		return
+	}
+	rows, err := db.Query(`SELECT cc.id, cc.content, cc.user_id, u.username, cc.created_at
+		FROM chapter_comments cc
+		LEFT JOIN users u ON u.id = cc.user_id
+		WHERE cc.chapter_id = ? AND cc.deleted_at IS NULL
+		ORDER BY cc.created_at ASC`, chapterID)
+	if err != nil {
+		writeJSON(w, 500, map[string]any{"code": 500, "message": err.Error()})
+		return
+	}
+	defer rows.Close()
+	var list []map[string]any
+	for rows.Next() {
+		var id int64
+		var content, username string
+		var userID sql.NullInt64
+		var createdAt string
+		_ = rows.Scan(&id, &content, &userID, &username, &createdAt)
+		uid := int64(0)
+		if userID.Valid {
+			uid = userID.Int64
+		}
+		list = append(list, map[string]any{"id": id, "content": content, "userId": uid, "username": username, "createdAt": createdAt})
+	}
+	writeJSON(w, 200, map[string]any{"code": 0, "data": list})
 }
 
 // ---------- 管理员：故事/评论审核、修改、删除 ----------

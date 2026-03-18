@@ -30,6 +30,16 @@
   const keywordResultInput = document.getElementById("keywordResultInput");
   const btnUseKeywordResult = document.getElementById("btnUseKeywordResult");
   const btnKeywordClose = document.getElementById("btnKeywordClose");
+  const btnNewOpening = document.getElementById("btnNewOpening");
+  const newOpeningModal = document.getElementById("newOpeningModal");
+  const newOpeningThemeInput = document.getElementById("newOpeningThemeInput");
+  const btnNewOpeningGenerate = document.getElementById("btnNewOpeningGenerate");
+  const btnNewOpeningCancel = document.getElementById("btnNewOpeningCancel");
+  const newOpeningResultWrap = document.getElementById("newOpeningResultWrap");
+  const newOpeningTitleInput = document.getElementById("newOpeningTitleInput");
+  const newOpeningContentInput = document.getElementById("newOpeningContentInput");
+  const btnCreateNewStory = document.getElementById("btnCreateNewStory");
+  const btnNewOpeningClose = document.getElementById("btnNewOpeningClose");
 
   const TOKEN_KEY = "secondme_access_token";
   const REFRESH_KEY = "secondme_refresh_token";
@@ -285,6 +295,123 @@ ${instructions}`;
     return prompt;
   }
 
+  function buildPromptNewOpening(theme) {
+    const hint = (theme || "").trim()
+      ? `【题材/方向】\n${theme.trim()}\n\n`
+      : "";
+    return `你是一位故事创作助手。请写一个全新的故事开篇（第一段），吸引读者继续读下去。${hint}要求：只输出一段开篇正文，不要解释、不要标题、不要序号。若涉及标题，可在段末用一行「标题：xxx」单独给出建议标题（没有则可省略）。`;
+  }
+
+  function openNewOpeningModal() {
+    if (newOpeningModal) newOpeningModal.classList.remove("hidden");
+    if (newOpeningThemeInput) {
+      newOpeningThemeInput.value = "";
+      newOpeningThemeInput.focus();
+    }
+    if (newOpeningResultWrap) newOpeningResultWrap.classList.add("hidden");
+    if (newOpeningTitleInput) newOpeningTitleInput.value = "";
+    if (newOpeningContentInput) newOpeningContentInput.value = "";
+  }
+
+  function closeNewOpeningModal() {
+    if (newOpeningModal) newOpeningModal.classList.add("hidden");
+  }
+
+  async function onNewOpeningGenerate() {
+    const token = await ensureToken();
+    if (!token) {
+      setStatus("请先登录", "error");
+      return;
+    }
+    const theme = (newOpeningThemeInput && newOpeningThemeInput.value || "").trim();
+    const prompt = buildPromptNewOpening(theme);
+    if (btnNewOpeningGenerate) btnNewOpeningGenerate.disabled = true;
+    if (newOpeningContentInput) newOpeningContentInput.value = "正在生成…";
+    if (newOpeningResultWrap) newOpeningResultWrap.classList.remove("hidden");
+    const result = await streamSecondMeChat(prompt);
+    if (!result.ok) {
+      if (newOpeningContentInput) newOpeningContentInput.value = "";
+      setStatus(result.error || "生成失败", "error");
+      if (btnNewOpeningGenerate) btnNewOpeningGenerate.disabled = false;
+      return;
+    }
+    let streamedText = "";
+    try {
+      for await (const chunk of parseSSE(result.stream)) {
+        streamedText += chunk;
+        if (newOpeningContentInput) newOpeningContentInput.value = streamedText;
+      }
+    } catch (e) {
+      if (newOpeningContentInput) newOpeningContentInput.value = "生成异常：" + e.message;
+    }
+    const final = (newOpeningContentInput && newOpeningContentInput.value || "").trim();
+    const titleMatch = final.match(/\n标题[：:]\s*([^\n]+)/);
+    if (titleMatch && newOpeningTitleInput) {
+      newOpeningTitleInput.value = titleMatch[1].trim();
+      if (newOpeningContentInput) newOpeningContentInput.value = final.replace(/\n标题[：:][^\n]+/, "").trim();
+    } else if (newOpeningTitleInput && !newOpeningTitleInput.value) {
+      const firstLine = final.split("\n")[0] || "";
+      newOpeningTitleInput.value = firstLine.slice(0, 30) + (firstLine.length > 30 ? "…" : "");
+    }
+    if (btnNewOpeningGenerate) btnNewOpeningGenerate.disabled = false;
+  }
+
+  async function onCreateNewStory() {
+    const title = (newOpeningTitleInput && newOpeningTitleInput.value || "").trim();
+    const opening = (newOpeningContentInput && newOpeningContentInput.value || "").trim();
+    if (!title) {
+      setStatus("请输入故事标题", "error");
+      return;
+    }
+    if (!opening) {
+      setStatus("请输入开篇内容", "error");
+      return;
+    }
+    const token = await ensureToken();
+    if (!token) {
+      setStatus("请先登录", "error");
+      return;
+    }
+    if (btnCreateNewStory) btnCreateNewStory.disabled = true;
+    setStatus("创建中…", "generating");
+    try {
+      const r = await fetch("/api/stories", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: "Bearer " + token,
+        },
+        body: JSON.stringify({ title, opening, tags: "" }),
+      });
+      const data = await r.json().catch(() => ({}));
+      if (r.status === 401) {
+        setStatus("登录已过期，请重新登录", "error");
+        if (btnCreateNewStory) btnCreateNewStory.disabled = false;
+        return;
+      }
+      if (data.code !== 0) {
+        setStatus(data.message || "创建失败", "error");
+        if (btnCreateNewStory) btnCreateNewStory.disabled = false;
+        return;
+      }
+      closeNewOpeningModal();
+      let story = data.data;
+      if (story && story.id) {
+        const full = await fetchStoryById(story.id);
+        if (full) story = full;
+      }
+      if (story) {
+        renderStory(story);
+        location.hash = "#story/" + story.id;
+      }
+      setStatus("故事已创建");
+      setTimeout(() => setStatus(""), 2000);
+    } catch (e) {
+      setStatus("请求失败：" + e.message, "error");
+    }
+    if (btnCreateNewStory) btnCreateNewStory.disabled = false;
+  }
+
   async function fetchRandomStory() {
     try {
       const r = await fetch("/api/stories/random?status=ongoing");
@@ -308,12 +435,137 @@ ${instructions}`;
   function renderSegment(content, meta) {
     const div = document.createElement("div");
     div.className = "segment";
-    div.innerHTML =
-      (meta && meta.length
-        ? `<div class="segment-meta">${meta.map((m) => `<span class="tag">${m}</span>`).join("")}</div>`
-        : "") +
-      `<div class="segment-text">${escapeHtml(content)}</div>`;
+    const metaHtml =
+      meta && meta.length
+        ? `<div class="segment-meta">${meta.map((m) => `<span class="tag${m.cls ? " " + m.cls : ""}">${escapeHtml(typeof m === "string" ? m : m.text)}</span>`).join("")}</div>`
+        : "";
+    div.innerHTML = metaHtml + `<div class="segment-text">${escapeHtml(content)}</div>`;
     return div;
+  }
+
+  function renderChapterSegment(ch) {
+    const div = document.createElement("div");
+    div.className = "segment";
+    div.dataset.chapterId = String(ch.id);
+    const likeCount = ch.likeCount != null ? ch.likeCount : 0;
+    const isAgent = !!(ch.authorAgentId && String(ch.authorAgentId).trim());
+    const authorLabel = isAgent ? "Agent" : ((ch.authorUsername && String(ch.authorUsername).trim()) || "作者");
+    const authorTag = isAgent ? '<span class="tag agent">Agent</span>' : '<span class="tag">' + escapeHtml(authorLabel) + '</span>';
+    div.innerHTML =
+      `<div class="segment-meta">${authorTag}</div>` +
+      `<div class="segment-text">${escapeHtml(ch.content || "")}</div>` +
+      `<div class="segment-actions">` +
+      `<button type="button" class="btn-chapter-like" data-chapter-id="${ch.id}" data-like-count="${likeCount}">点赞${likeCount > 0 ? " " + likeCount : ""}</button>` +
+      `<button type="button" class="btn-chapter-comment" data-chapter-id="${ch.id}">评论</button>` +
+      `</div>` +
+      `<div class="segment-comments hidden" data-chapter-id="${ch.id}">` +
+      `<ul class="comment-list"></ul>` +
+      `<div class="comment-form"><textarea placeholder="写评论…" rows="2"></textarea><button type="button" class="btn-comment-submit">提交</button></div>` +
+      `</div>`;
+    return div;
+  }
+
+  async function fetchChapterComments(chapterId) {
+    try {
+      const r = await fetch("/api/chapters/" + chapterId + "/comments");
+      const data = await r.json();
+      return (data.code === 0 && data.data) ? data.data : [];
+    } catch (_) {
+      return [];
+    }
+  }
+
+  function renderCommentList(ul, comments) {
+    ul.innerHTML = comments
+      .map((c) => `<li class="comment-item"><span class="comment-meta">${escapeHtml(c.username || "用户")}</span>${escapeHtml(c.content || "")}</li>`)
+      .join("");
+  }
+
+  async function onChapterLike(btn) {
+    const chapterId = btn.dataset.chapterId;
+    if (!chapterId) return;
+    const token = await ensureToken();
+    if (!token) {
+      setStatus("请先登录", "error");
+      return;
+    }
+    btn.disabled = true;
+    try {
+      const r = await fetch("/api/chapters/" + chapterId + "/like", {
+        method: "POST",
+        headers: { Authorization: "Bearer " + token },
+      });
+      const data = await r.json().catch(() => ({}));
+      if (r.status === 401) {
+        setStatus("请先登录", "error");
+        btn.disabled = false;
+        return;
+      }
+      const count = (parseInt(btn.dataset.likeCount, 10) || 0) + 1;
+      btn.dataset.likeCount = String(count);
+      btn.textContent = "已点赞 " + (count > 0 ? count : "");
+    } catch (_) {
+      setStatus("请求失败", "error");
+    }
+    btn.disabled = false;
+  }
+
+  async function onChapterCommentToggle(segment, chapterId) {
+    const commentsEl = segment.querySelector(".segment-comments");
+    const listEl = segment.querySelector(".comment-list");
+    if (!commentsEl || !listEl) return;
+    const isHidden = commentsEl.classList.contains("hidden");
+    commentsEl.classList.toggle("hidden", !isHidden);
+    if (!isHidden) return;
+    if (!listEl.dataset.loaded) {
+      listEl.dataset.loaded = "1";
+      const comments = await fetchChapterComments(chapterId);
+      renderCommentList(listEl, comments);
+    }
+  }
+
+  async function onCommentSubmit(segment, chapterId) {
+    const form = segment.querySelector(".comment-form");
+    const textarea = form && form.querySelector("textarea");
+    const content = (textarea && textarea.value || "").trim();
+    if (!content) {
+      setStatus("请输入评论内容", "error");
+      return;
+    }
+    const token = await ensureToken();
+    if (!token) {
+      setStatus("请先登录", "error");
+      return;
+    }
+    const submitBtn = form && form.querySelector(".btn-comment-submit");
+    if (submitBtn) submitBtn.disabled = true;
+    try {
+      const r = await fetch("/api/chapters/" + chapterId + "/comment", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: "Bearer " + token },
+        body: JSON.stringify({ content }),
+      });
+      const data = await r.json().catch(() => ({}));
+      if (r.status === 401) {
+        setStatus("请先登录", "error");
+        if (submitBtn) submitBtn.disabled = false;
+        return;
+      }
+      if (data.code !== 0) {
+        setStatus(data.message || "提交失败", "error");
+        if (submitBtn) submitBtn.disabled = false;
+        return;
+      }
+      textarea.value = "";
+      const comments = await fetchChapterComments(chapterId);
+      const listEl = segment.querySelector(".comment-list");
+      if (listEl) renderCommentList(listEl, comments);
+      setStatus("评论已发布");
+      setTimeout(() => setStatus(""), 2000);
+    } catch (e) {
+      setStatus("请求失败：" + e.message, "error");
+    }
+    if (submitBtn) submitBtn.disabled = false;
   }
 
   function renderStory(story) {
@@ -327,6 +579,12 @@ ${instructions}`;
         if (storyIdLink) {
           storyIdLink.href = "#story/" + story.id;
           storyIdLink.textContent = "#" + story.id;
+        }
+        const statsEl = document.getElementById("storyStats");
+        if (statsEl) {
+          const lc = story.likeCount != null ? story.likeCount : 0;
+          const cc = story.commentCount != null ? story.commentCount : 0;
+          statsEl.innerHTML = (story.status === "completed" ? '<span class="story-status-tag">已完结</span>' : "") + "点赞 " + lc + " · 评论 " + cc;
         }
       } else {
         storyTitleBar.classList.add("hidden");
@@ -342,11 +600,12 @@ ${instructions}`;
     }
 
     if (story.opening) {
-      storyCanvas.appendChild(renderSegment(story.opening, []));
+      const creatorName = (story.creatorUsername && story.creatorUsername.trim()) ? story.creatorUsername.trim() : "作者";
+      storyCanvas.appendChild(renderSegment(story.opening, [{ text: "开篇", cls: "" }, { text: creatorName, cls: "" }]));
     }
     const chapters = story.chapters || [];
     chapters.forEach((ch) => {
-      storyCanvas.appendChild(renderSegment(ch.content || "", []));
+      storyCanvas.appendChild(renderChapterSegment(ch));
     });
 
     if (suspenseBox) {
@@ -639,6 +898,35 @@ ${instructions}`;
   if (btnKeywordClose) btnKeywordClose.addEventListener("click", closeKeywordModal);
   if (btnKeywordGenerate) btnKeywordGenerate.addEventListener("click", onKeywordGenerate);
   if (btnUseKeywordResult) btnUseKeywordResult.addEventListener("click", onUseKeywordResult);
+  if (btnNewOpening) btnNewOpening.addEventListener("click", openNewOpeningModal);
+  if (btnNewOpeningCancel) btnNewOpeningCancel.addEventListener("click", closeNewOpeningModal);
+  if (btnNewOpeningClose) btnNewOpeningClose.addEventListener("click", closeNewOpeningModal);
+  if (btnNewOpeningGenerate) btnNewOpeningGenerate.addEventListener("click", onNewOpeningGenerate);
+  if (btnCreateNewStory) btnCreateNewStory.addEventListener("click", onCreateNewStory);
+
+  if (storyCanvas) {
+    storyCanvas.addEventListener("click", (e) => {
+      const likeBtn = e.target.closest(".btn-chapter-like");
+      if (likeBtn) {
+        e.preventDefault();
+        onChapterLike(likeBtn);
+        return;
+      }
+      const commentBtn = e.target.closest(".btn-chapter-comment");
+      if (commentBtn) {
+        e.preventDefault();
+        const segment = commentBtn.closest(".segment[data-chapter-id]");
+        if (segment) onChapterCommentToggle(segment, commentBtn.dataset.chapterId);
+        return;
+      }
+      const submitBtn = e.target.closest(".btn-comment-submit");
+      if (submitBtn) {
+        e.preventDefault();
+        const segment = submitBtn.closest(".segment[data-chapter-id]");
+        if (segment) onCommentSubmit(segment, segment.dataset.chapterId);
+      }
+    });
+  }
 
   document.querySelectorAll(".sidebar-nav a[data-tab]").forEach((a) => {
     a.addEventListener("click", (e) => {
