@@ -65,6 +65,22 @@ func resolveSecondMeUser(accessToken string) (userID int64, username string, err
 	return id, username, nil
 }
 
+// ResolveTokenToUserID 从 Bearer token 解析出本地 userID（JWT 或 SecondMe token）。无法解析或为 Agent Key 时返回 (0, false)。
+func ResolveTokenToUserID(token string) (userID int64, ok bool) {
+	if token == "" {
+		return 0, false
+	}
+	uid, _, _, err := model.ParseJWT(token)
+	if err == nil {
+		return uid, true
+	}
+	uid, _, err = resolveSecondMeUser(token)
+	if err == nil {
+		return uid, true
+	}
+	return 0, false
+}
+
 // RequireAuth 需要登录的接口使用；支持 Bearer JWT、SecondMe token、X-Agent-Key。
 func RequireAuth(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {

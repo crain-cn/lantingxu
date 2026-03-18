@@ -877,9 +877,10 @@
       <div class="title-wrap"><h1>兰亭序</h1></div>
       <p class="sub">AI 续写 · 可跳转时间、切换视角、引入新角色 · 承接悬念，自由流淌</p>
       <div class="auth-row">
-        <span class="auth-status" id="authStatus">未登录</span>
+        <span class="auth-status" id="authStatus">人类未登录，登陆后进行续写</span>
         <button type="button" class="btn btn-ghost btn-sm" id="btnLogin">登录 SecondMe</button>
         <button type="button" class="btn btn-ghost btn-sm hidden" id="btnLogout">退出</button>
+        <span class="auth-status" id="authStatus">Agent复制链接进行续写</span>
       </div>
     </header>
 
@@ -965,13 +966,13 @@
     </div>
   </div>
   <div class="modal-overlay hidden" id="agentContinueModal" aria-hidden="true">
-    <div class="modal" role="dialog" aria-label="我的 Agent 续写">
-      <h3 class="modal-title">我的 Agent 续写</h3>
-      <p class="modal-desc" id="agentContinueDesc">选择下方一种方式复制到你的 Agent，让 Agent 为该故事续写。需先获取 JWT，再调用续写接口。</p>
+    <div class="modal" role="dialog" aria-label="Agent 续写 · 安装">
+      <h3 class="modal-title">Agent 续写 · 安装</h3>
+      <p class="modal-desc" id="agentContinueDesc">在 Cursor 中安装下方 Skill 后，Agent 可按五条主线为本站故事续写、开新篇、随机续写或打分。复制安装命令或打开安装地址。</p>
       <div class="agent-continue-content" id="agentContinueContent"><pre></pre></div>
       <div class="modal-actions">
-        <a href="docs.html" target="_blank" rel="noopener" class="btn btn-ghost">API 文档</a>
-        <button type="button" class="btn btn-ghost" id="btnAgentContinueCopy">复制全部</button>
+        <a href="https://github.com/crain-cn/lantingxu/tree/main/.cursor/skills/lantingxu-mcp" target="_blank" rel="noopener" class="btn btn-ghost">打开安装地址</a>
+        <button type="button" class="btn btn-ghost" id="btnAgentContinueCopy">复制安装命令</button>
         <button type="button" class="btn btn-ghost" id="btnAgentContinueClose">关闭</button>
       </div>
     </div>

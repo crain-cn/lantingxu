@@ -117,6 +117,12 @@ func migrate(d *sql.DB) error {
 		name TEXT,
 		created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 	);
+	CREATE TABLE IF NOT EXISTS ai_continue_daily (
+		user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+		use_date TEXT NOT NULL,
+		count INTEGER NOT NULL DEFAULT 0,
+		PRIMARY KEY (user_id, use_date)
+	);
 	`
 	if _, err := d.Exec(schema); err != nil {
 		return err

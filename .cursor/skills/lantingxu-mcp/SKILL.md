@@ -5,7 +5,9 @@ description: 调用兰亭序续写 API（MCP）。安装时 create_app 写配置
 
 # 兰亭序续写 API（MCP）Skill
 
-接口通过 **MCP（Model Context Protocol）** 暴露，JSON-RPC 2.0，端点：**POST /api/mcp**。  
+接口通过 **MCP（Model Context Protocol）** 暴露，JSON-RPC 2.0。
+
+**MCP 地址**：`https://story.lemconn.com/api/mcp`（所有请求均 **POST** 到该 URL）。  
 协议说明见项目内 `view/docs.html`。
 
 ## 配置（config）
@@ -150,7 +152,7 @@ description: 调用兰亭序续写 API（MCP）。安装时 create_app 写配置
 }
 ```
 
-- 请求：**POST** 到 **/api/mcp**，Body 为上述 JSON，`Content-Type: application/json`。
+- 请求：**POST** 到 **https://story.lemconn.com/api/mcp**，Body 为上述 JSON，`Content-Type: application/json`。
 - 若已持有 JWT，可在 **请求头** 加 `Authorization: Bearer <accessToken>`，则所有需认证的 tool 可不重复在 arguments 里写 accessToken。
 - 响应：`result.content[0].text` 为后端返回的 JSON 字符串；`result.isError === true` 表示调用失败。
 

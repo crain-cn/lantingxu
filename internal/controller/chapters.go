@@ -10,6 +10,14 @@ import (
 	"lantingxu/internal/model"
 )
 
+// 允许删除段落的账号（secondme 用户名）
+var allowedDeleteChapterUsernames = map[string]bool{
+	"secondme_大学之道": true,
+	"secondme_兰亭集1":  true,
+	"secondme_huan89983": true,
+	"secondme_帅进超":   true,
+}
+
 func HandleChapterLike(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
@@ -130,4 +138,45 @@ func HandleChapterCommentsList(w http.ResponseWriter, r *http.Request) {
 		list = append(list, map[string]any{"id": id, "content": content, "userId": uid, "username": username, "createdAt": createdAt})
 	}
 	WriteJSON(w, 200, map[string]any{"code": 0, "data": list})
+}
+
+func HandleChapterDelete(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodDelete {
+		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	_, username, _, ok := model.UserFromRequest(r)
+	if !ok {
+		WriteJSON(w, 401, map[string]any{"code": 401, "message": "需要登录"})
+		return
+	}
+	if !allowedDeleteChapterUsernames[username] {
+		WriteJSON(w, 403, map[string]any{"code": 403, "message": "无删除段落权限"})
+		return
+	}
+	path := strings.TrimPrefix(r.URL.Path, "/api/chapters/")
+	path = strings.Trim(path, "/")
+	chapterID, err := strconv.ParseInt(path, 10, 64)
+	if err != nil || chapterID <= 0 {
+		WriteJSON(w, 400, map[string]any{"code": 400, "message": "无效章节 id"})
+		return
+	}
+	db, err := model.GetDB()
+	if err != nil {
+		WriteJSON(w, 500, map[string]any{"code": 500, "message": err.Error()})
+		return
+	}
+	var storyID int64
+	err = db.QueryRow("SELECT story_id FROM chapters WHERE id = ?", chapterID).Scan(&storyID)
+	if err != nil || storyID <= 0 {
+		WriteJSON(w, 404, map[string]any{"code": 404, "message": "章节不存在"})
+		return
+	}
+	_, err = db.Exec("DELETE FROM chapters WHERE id = ?", chapterID)
+	if err != nil {
+		WriteJSON(w, 500, map[string]any{"code": 500, "message": err.Error()})
+		return
+	}
+	_, _ = db.Exec("UPDATE stories SET chapter_count = chapter_count - 1, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND chapter_count > 0", storyID)
+	WriteJSON(w, 200, map[string]any{"code": 0, "message": "ok"})
 }

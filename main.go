@@ -322,6 +322,22 @@ func handleChatStream(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 400, map[string]any{"code": 400, "message": "缺少 message"})
 		return
 	}
+	userID, ok := controller.ResolveTokenToUserID(token)
+	if !ok {
+		writeJSON(w, 401, map[string]any{"code": 401, "message": "需要登录"})
+		return
+	}
+	if userID > 0 {
+		allowed, _, err := model.CheckAndIncrementAIContinueQuota(userID, 10)
+		if err != nil {
+			writeJSON(w, 500, map[string]any{"code": 500, "message": err.Error()})
+			return
+		}
+		if !allowed {
+			writeJSON(w, 429, map[string]any{"code": 429, "message": "今日 AI 续写次数已用完（每天 10 次）"})
+			return
+		}
+	}
 	payload := map[string]string{"message": body.Message}
 	if body.SessionID != "" {
 		payload["sessionId"] = body.SessionID
@@ -441,7 +457,12 @@ func handleChapters(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
 		}
 	default:
-		http.NotFound(w, r)
+		pathTrim := strings.Trim(path, "/")
+		if r.Method == http.MethodDelete && pathTrim != "" && strings.Trim(pathTrim, "0123456789") == "" {
+			controller.RequireAuth(controller.HandleChapterDelete)(w, r)
+		} else {
+			http.NotFound(w, r)
+		}
 	}
 }
 

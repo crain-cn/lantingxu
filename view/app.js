@@ -64,6 +64,7 @@
   const EXPIRES_KEY = "secondme_expires_in";
   const USER_NAME_KEY = "secondme_user_name";
   const LAST_STORY_ID_KEY = "lantingxu_last_story_id";
+  const ALLOWED_DELETE_USERNAMES = ["secondme_大学之道", "secondme_兰亭集1", "secondme_huan89983", "secondme_帅进超"];
 
   let currentStory = null;
   let lastContentFromAI = false;
@@ -138,7 +139,7 @@
       if (btnLogout) btnLogout.classList.remove("hidden");
     } else {
       sessionStorage.removeItem(USER_NAME_KEY);
-      authStatus.textContent = "未登录";
+      authStatus.textContent = "人类未登录，登陆后进行续写";
       authStatus.classList.remove("ready");
       if (btnLogin) btnLogin.classList.remove("hidden");
       if (btnLogout) btnLogout.classList.add("hidden");
@@ -427,8 +428,10 @@ ${instructions}`;
         if (full) story = full;
       }
       if (story) {
+        sessionStorage.setItem(LAST_STORY_ID_KEY, String(story.id));
         renderStory(story);
         location.hash = "#story/" + story.id;
+        storyCanvas && storyCanvas.scrollIntoView({ behavior: "smooth", block: "start" });
       }
       setStatus("故事已创建");
       setTimeout(() => setStatus(""), 2000);
@@ -469,6 +472,13 @@ ${instructions}`;
     return div;
   }
 
+  function canDeleteParagraph() {
+    const name = (sessionStorage.getItem(USER_NAME_KEY) || "").trim().replace(/\s+/g, "_");
+    if (!name) return false;
+    const username = "secondme_" + name;
+    return ALLOWED_DELETE_USERNAMES.indexOf(username) !== -1;
+  }
+
   function renderChapterSegment(ch) {
     const div = document.createElement("div");
     div.className = "segment";
@@ -480,12 +490,14 @@ ${instructions}`;
       ? ((ch.authorUsername && String(ch.authorUsername).trim()) || "我") + " · 兰亭集AI"
       : agentId ? "Agent: " + agentId : ((ch.authorUsername && String(ch.authorUsername).trim()) || "作者");
     const authorTag = '<span class="tag">' + escapeHtml(authorLabel) + '</span>';
+    const deleteBtn = canDeleteParagraph() ? `<button type="button" class="btn-chapter-delete" data-chapter-id="${ch.id}">删除</button>` : "";
     div.innerHTML =
       `<div class="segment-meta">${authorTag}</div>` +
       `<div class="segment-text">${escapeHtml(ch.content || "")}</div>` +
       `<div class="segment-actions">` +
       `<button type="button" class="btn-chapter-like" data-chapter-id="${ch.id}" data-like-count="${likeCount}">点赞${likeCount > 0 ? " " + likeCount : ""}</button>` +
       `<button type="button" class="btn-chapter-comment" data-chapter-id="${ch.id}">评论</button>` +
+      deleteBtn +
       `</div>` +
       `<div class="segment-comments hidden" data-chapter-id="${ch.id}">` +
       `<ul class="comment-list"></ul>` +
@@ -595,6 +607,42 @@ ${instructions}`;
       setStatus("请求失败：" + e.message, "error");
     }
     if (submitBtn) submitBtn.disabled = false;
+  }
+
+  async function onChapterDelete(btn) {
+    const chapterId = btn.dataset.chapterId;
+    if (!chapterId || !currentStory) return;
+    if (!confirm("确定删除该段落？此操作不可恢复。")) return;
+    const token = await ensureToken();
+    if (!token) {
+      setStatus("请先登录", "error");
+      return;
+    }
+    btn.disabled = true;
+    try {
+      const r = await fetch("/api/chapters/" + chapterId, {
+        method: "DELETE",
+        headers: { Authorization: "Bearer " + token },
+      });
+      const data = await r.json().catch(() => ({}));
+      if (r.status === 403) {
+        setStatus(data.message || "无删除权限", "error");
+        btn.disabled = false;
+        return;
+      }
+      if (data.code !== 0) {
+        setStatus(data.message || "删除失败", "error");
+        btn.disabled = false;
+        return;
+      }
+      const updated = await fetchStoryById(currentStory.id);
+      if (updated) renderStory(updated);
+      setStatus("段落已删除");
+      setTimeout(() => setStatus(""), 2000);
+    } catch (e) {
+      setStatus("请求失败：" + e.message, "error");
+    }
+    btn.disabled = false;
   }
 
   function renderStory(story) {
@@ -997,50 +1045,19 @@ ${instructions}`;
     if (keywordModal) keywordModal.classList.add("hidden");
   }
 
+  const AGENT_SKILL_INSTALL_URL = "https://github.com/crain-cn/lantingxu/tree/main/.cursor/skills/lantingxu-mcp";
+
   function buildAgentContinueText() {
-    const base = location.origin;
-    const storyId = currentStory ? String(currentStory.id) : "";
-    const title = (currentStory && currentStory.title) ? currentStory.title : "当前故事";
-    const jwtUrl = base + "/api/openapi/auth/jwt/token";
-    const mcpUrl = base + "/api/mcp";
-    const mcpGetToken = JSON.stringify({
-      jsonrpc: "2.0",
-      id: 1,
-      method: "tools/call",
-      params: { name: "get_jwt_token", arguments: { appId: "default", appSecret: "你的appSecret" } }
-    }, null, 2);
-    const mcpSubmit = JSON.stringify({
-      jsonrpc: "2.0",
-      id: 2,
-      method: "tools/call",
-      params: {
-        name: "submit_chapter",
-        arguments: {
-          storyId: storyId || "{故事ID}",
-          content: "续写正文",
-          authorAgentId: "你的Agent名称",
-          accessToken: "<从 get_jwt_token 返回的 accessToken>"
-        }
-      }
-    }, null, 2);
     return (
-      "【" + title + "】故事 ID：" + (storyId || "-") + "\n\n" +
-      "========== MCP 方式（推荐）==========\n" +
-      "端点: POST " + mcpUrl + "\n\n" +
-      "1) 获取 JWT：\n" + mcpGetToken + "\n\n" +
-      "2) 提交续写：\n" + mcpSubmit + "\n\n" +
-      "========== REST 方式 ==========\n" +
-      "1) 获取 JWT：POST " + jwtUrl + "\n" +
-      "   Body: {\"appId\":\"default\",\"appSecret\":\"你的appSecret\"}\n\n" +
-      "2) 提交续写：POST " + base + "/api/openapi/stories/" + (storyId || "{故事ID}") + "/chapters\n" +
-      "   Header: Authorization: Bearer <accessToken>\n" +
-      "   Body: {\"content\":\"续写正文\",\"authorAgentId\":\"你的Agent名称\"}"
+      "# 兰亭序续写 Agent Skill 安装\n\n" +
+      "安装地址：\n" + AGENT_SKILL_INSTALL_URL + "\n\n" +
+      "安装命令（在项目根目录执行，将 Skill 放入 .cursor/skills/）：\n" +
+      "mkdir -p .cursor/skills && git clone --depth 1 https://github.com/crain-cn/lantingxu.git /tmp/lantingxu-skill && cp -r /tmp/lantingxu-skill/.cursor/skills/lantingxu-mcp .cursor/skills/ && rm -rf /tmp/lantingxu-skill\n\n" +
+      "或：打开上述地址，将 lantingxu-mcp 目录下载并放到项目的 .cursor/skills/ 下。\n\n" +
+      "安装后：Agent 按 SKILL.md 五条主线使用（安装配置、续写自己的、开新篇、随机续写、随机打分）。"
     );
   }
   function openAgentContinueModal() {
-    if (!currentStory) return;
-    const desc = document.getElementById("agentContinueDesc");
-    if (desc) desc.textContent = "选择下方一种方式复制到你的 Agent，让 Agent 为《" + (currentStory.title || "该故事") + "》续写。需先获取 JWT，再调用续写接口。";
     if (agentContinueModal) agentContinueModal.classList.remove("hidden");
     const pre = agentContinueContent && agentContinueContent.querySelector("pre");
     if (pre) pre.textContent = buildAgentContinueText();
@@ -1193,6 +1210,12 @@ ${instructions}`;
         e.preventDefault();
         const segment = submitBtn.closest(".segment[data-chapter-id]");
         if (segment) onCommentSubmit(segment, segment.dataset.chapterId);
+        return;
+      }
+      const deleteBtn = e.target.closest(".btn-chapter-delete");
+      if (deleteBtn) {
+        e.preventDefault();
+        onChapterDelete(deleteBtn);
       }
     });
   }
