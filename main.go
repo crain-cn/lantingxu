@@ -400,7 +400,7 @@ func handleStories(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// handleStoriesSlash: /api/stories/random, /api/stories/{id}, /api/stories/{id}/chapters
+// handleStoriesSlash: /api/stories/random, /api/stories/{id}, /api/stories/{id}/chapters, /api/stories/{id}/rate, /api/stories/{id}/rating
 func handleStoriesSlash(w http.ResponseWriter, r *http.Request) {
 	path := strings.TrimPrefix(r.URL.Path, "/api/stories/")
 	switch {
@@ -409,6 +409,18 @@ func handleStoriesSlash(w http.ResponseWriter, r *http.Request) {
 	case strings.HasSuffix(path, "/chapters"):
 		if r.Method == http.MethodPost {
 			requireAuth(handleStoryAddChapter)(w, r)
+		} else {
+			http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
+		}
+	case strings.HasSuffix(path, "/rate"):
+		if r.Method == http.MethodPost {
+			requireAuth(handleStoryRate)(w, r)
+		} else {
+			http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
+		}
+	case strings.HasSuffix(path, "/rating"):
+		if r.Method == http.MethodGet {
+			handleStoryMyRating(w, r)
 		} else {
 			http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
 		}

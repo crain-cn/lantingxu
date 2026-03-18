@@ -418,6 +418,14 @@
     .story-title-bar .story-id-link:hover { color: var(--accent); }
     .story-title-bar .story-stats { margin-left: auto; font-size: 0.82rem; color: var(--ink-dim); }
     .story-title-bar .story-status-tag { font-size: 0.7rem; padding: 0.15rem 0.4rem; border-radius: 2px; background: rgba(125, 157, 122, 0.25); color: var(--success); margin-left: 0.25rem; }
+    .story-score-bar {
+      font-size: 0.85rem; color: var(--ink-dim); margin-bottom: 0.5rem; display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;
+    }
+    .story-score-bar .story-score-display { color: var(--accent); }
+    .story-score-bar .story-my-score-wrap input[type="range"] {
+      width: 6rem; vertical-align: middle; margin: 0 0.35rem; accent-color: var(--accent);
+    }
+    .story-score-bar .story-my-score-wrap #storyScoreValue { color: var(--accent); font-weight: 600; min-width: 1.5rem; display: inline-block; }
     .login-hint {
       background: var(--accent-glow);
       border: 1px solid var(--accent-soft);
@@ -810,6 +818,10 @@
     </header>
 
     <p class="story-title-bar hidden" id="storyTitleBar"><span class="story-title-text" id="storyTitleText"></span><a href="#" class="story-id-link" id="storyIdLink"></a><span class="story-stats" id="storyStats"></span></p>
+    <div class="story-score-bar hidden" id="storyScoreBar" aria-label="故事评分">
+      <span class="story-score-display">评分 <span id="storyScoreAvg">--</span>（<span id="storyScoreCount">0</span>人）</span>
+      <span class="story-my-score-wrap hidden" id="storyMyScoreWrap">我的评分：<input type="range" id="storyScoreInput" min="0" max="100" value="50" aria-label="评分" /><span id="storyScoreValue">50</span> 分 <button type="button" class="btn btn-ghost btn-sm" id="btnSubmitScore">提交</button></span>
+    </div>
     <main class="story-canvas" id="storyCanvas" role="log" aria-live="polite"></main>
 
     <section class="suspense-box hidden" id="suspenseBox" aria-label="上文悬念">

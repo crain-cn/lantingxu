@@ -107,10 +107,23 @@ func migrate(d *sql.DB) error {
 		UNIQUE(story_id, source)
 	);
 	CREATE INDEX IF NOT EXISTS idx_rec_story ON recommendation_weights(story_id);
+
+	-- 故事评分（满分100，每用户每故事一条）
+	CREATE TABLE IF NOT EXISTS story_ratings (
+		user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+		story_id INTEGER NOT NULL REFERENCES stories(id) ON DELETE CASCADE,
+		score INTEGER NOT NULL CHECK(score >= 0 AND score <= 100),
+		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		PRIMARY KEY (user_id, story_id)
+	);
+	CREATE INDEX IF NOT EXISTS idx_ratings_story ON story_ratings(story_id);
 	`
 	if _, err := d.Exec(schema); err != nil {
 		return err
 	}
+	// 兼容旧库：为 stories 增加评分冗余列（若已存在则忽略）
+	_, _ = d.Exec("ALTER TABLE stories ADD COLUMN score_avg REAL")
+	_, _ = d.Exec("ALTER TABLE stories ADD COLUMN score_count INTEGER DEFAULT 0")
 	return seedStories(d)
 }
 

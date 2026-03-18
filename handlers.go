@@ -210,15 +210,99 @@ func handleStoryDetail(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 200, map[string]any{"code": 0, "data": story})
 }
 
+// POST /api/stories/:id/rate 打分（满分100），需登录
+func handleStoryRate(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	userID, _, _, ok := userFromRequest(r)
+	if !ok {
+		writeJSON(w, 401, map[string]any{"code": 401, "message": "需要登录"})
+		return
+	}
+	idStr := strings.TrimPrefix(r.URL.Path, "/api/stories/")
+	idStr = strings.TrimSuffix(idStr, "/rate")
+	idStr = strings.Trim(idStr, "/")
+	storyID, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil || storyID <= 0 {
+		writeJSON(w, 400, map[string]any{"code": 400, "message": "无效故事 id"})
+		return
+	}
+	var body struct {
+		Score int `json:"score"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeJSON(w, 400, map[string]any{"code": 400, "message": "无效请求体"})
+		return
+	}
+	if body.Score < 0 || body.Score > 100 {
+		writeJSON(w, 400, map[string]any{"code": 400, "message": "分数须在 0～100 之间"})
+		return
+	}
+	db, err := getDB()
+	if err != nil {
+		writeJSON(w, 500, map[string]any{"code": 500, "message": err.Error()})
+		return
+	}
+	_, err = db.Exec(`INSERT INTO story_ratings (user_id, story_id, score) VALUES (?, ?, ?) ON CONFLICT(user_id, story_id) DO UPDATE SET score = excluded.score`,
+		userID, storyID, body.Score)
+	if err != nil {
+		writeJSON(w, 500, map[string]any{"code": 500, "message": err.Error()})
+		return
+	}
+	// 更新故事冗余
+	_, _ = db.Exec(`UPDATE stories SET score_avg = (SELECT COALESCE(AVG(score),0) FROM story_ratings WHERE story_id = ?), score_count = (SELECT COUNT(*) FROM story_ratings WHERE story_id = ?), updated_at = CURRENT_TIMESTAMP WHERE id = ?`, storyID, storyID, storyID)
+	story, _ := getStoryByID(db, storyID, true)
+	writeJSON(w, 200, map[string]any{"code": 0, "data": story, "myScore": body.Score})
+}
+
+// GET /api/stories/:id/rating 当前用户对该故事的评分（需登录）
+func handleStoryMyRating(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	userID, _, _, ok := userFromRequest(r)
+	if !ok {
+		writeJSON(w, 200, map[string]any{"code": 0, "data": map[string]any{"score": nil}})
+		return
+	}
+	idStr := strings.TrimPrefix(r.URL.Path, "/api/stories/")
+	idStr = strings.TrimSuffix(idStr, "/rating")
+	idStr = strings.Trim(idStr, "/")
+	storyID, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil || storyID <= 0 {
+		writeJSON(w, 400, map[string]any{"code": 400, "message": "无效故事 id"})
+		return
+	}
+	db, err := getDB()
+	if err != nil {
+		writeJSON(w, 500, map[string]any{"code": 500, "message": err.Error()})
+		return
+	}
+	var score sql.NullInt64
+	_ = db.QueryRow("SELECT score FROM story_ratings WHERE user_id = ? AND story_id = ?", userID, storyID).Scan(&score)
+	out := map[string]any{"score": nil}
+	if score.Valid {
+		out["score"] = int(score.Int64)
+	}
+	writeJSON(w, 200, map[string]any{"code": 0, "data": out})
+}
+
 func getStoryByID(db *sql.DB, id int64, withChapters bool) (map[string]any, error) {
 	var title, opening, tags, status string
 	var creatorID sql.NullInt64
 	var creatorUsername string
 	var likeCount, commentCount, chapterCount int
+	var scoreAvg sql.NullFloat64
+	var scoreCount sql.NullInt64
 	var createdAt, updatedAt string
-	err := db.QueryRow(`SELECT s.title, s.opening, s.tags, s.status, s.creator_user_id, s.like_count, s.comment_count, s.chapter_count, s.created_at, s.updated_at,
-		COALESCE(u.username, '') FROM stories s LEFT JOIN users u ON s.creator_user_id = u.id WHERE s.id = ?`, id).Scan(
-		&title, &opening, &tags, &status, &creatorID, &likeCount, &commentCount, &chapterCount, &createdAt, &updatedAt, &creatorUsername)
+	err := db.QueryRow(`SELECT s.title, s.opening, s.tags, s.status, s.creator_user_id, s.like_count, s.comment_count, s.chapter_count,
+		COALESCE(s.score_avg, 0), COALESCE(s.score_count, 0), s.created_at, s.updated_at, COALESCE(u.username, '')
+		FROM stories s LEFT JOIN users u ON s.creator_user_id = u.id WHERE s.id = ?`, id).Scan(
+		&title, &opening, &tags, &status, &creatorID, &likeCount, &commentCount, &chapterCount,
+		&scoreAvg, &scoreCount, &createdAt, &updatedAt, &creatorUsername)
 	if err != nil {
 		return nil, err
 	}
@@ -226,10 +310,17 @@ func getStoryByID(db *sql.DB, id int64, withChapters bool) (map[string]any, erro
 	if creatorID.Valid {
 		creatorUserId = creatorID.Int64
 	}
+	avg, cnt := 0.0, 0
+	if scoreAvg.Valid {
+		avg = scoreAvg.Float64
+	}
+	if scoreCount.Valid {
+		cnt = int(scoreCount.Int64)
+	}
 	out := map[string]any{
 		"id": id, "title": title, "opening": opening, "tags": tags, "status": status,
 		"creatorUserId": creatorUserId, "creatorUsername": creatorUsername, "likeCount": likeCount, "commentCount": commentCount, "chapterCount": chapterCount,
-		"createdAt": createdAt, "updatedAt": updatedAt,
+		"scoreAvg": avg, "scoreCount": cnt, "createdAt": createdAt, "updatedAt": updatedAt,
 	}
 	if !withChapters {
 		return out, nil

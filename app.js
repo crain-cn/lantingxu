@@ -40,6 +40,13 @@
   const newOpeningContentInput = document.getElementById("newOpeningContentInput");
   const btnCreateNewStory = document.getElementById("btnCreateNewStory");
   const btnNewOpeningClose = document.getElementById("btnNewOpeningClose");
+  const storyScoreBar = document.getElementById("storyScoreBar");
+  const storyScoreAvgEl = document.getElementById("storyScoreAvg");
+  const storyScoreCountEl = document.getElementById("storyScoreCount");
+  const storyMyScoreWrap = document.getElementById("storyMyScoreWrap");
+  const storyScoreInput = document.getElementById("storyScoreInput");
+  const storyScoreValueEl = document.getElementById("storyScoreValue");
+  const btnSubmitScore = document.getElementById("btnSubmitScore");
 
   const TOKEN_KEY = "secondme_access_token";
   const REFRESH_KEY = "secondme_refresh_token";
@@ -584,10 +591,29 @@ ${instructions}`;
         if (statsEl) {
           const lc = story.likeCount != null ? story.likeCount : 0;
           const cc = story.commentCount != null ? story.commentCount : 0;
-          statsEl.innerHTML = (story.status === "completed" ? '<span class="story-status-tag">已完结</span>' : "") + "点赞 " + lc + " · 评论 " + cc;
+          const sc = story.scoreCount != null ? story.scoreCount : 0;
+          const avg = story.scoreAvg != null ? Number(story.scoreAvg).toFixed(1) : "--";
+          let stats = (story.status === "completed" ? '<span class="story-status-tag">已完结</span>' : "") + "点赞 " + lc + " · 评论 " + cc;
+          if (sc > 0) stats += " · 评分 " + avg + "（" + sc + "人）";
+          statsEl.innerHTML = stats;
+        }
+        if (storyScoreBar) {
+          storyScoreBar.classList.remove("hidden");
+          if (storyScoreAvgEl) storyScoreAvgEl.textContent = story.scoreCount > 0 ? Number(story.scoreAvg).toFixed(1) : "--";
+          if (storyScoreCountEl) storyScoreCountEl.textContent = story.scoreCount != null ? story.scoreCount : 0;
+        }
+        if (storyMyScoreWrap) {
+          const loggedIn = !!getToken();
+          storyMyScoreWrap.classList.toggle("hidden", !loggedIn);
+          if (loggedIn && storyScoreInput) {
+            storyScoreInput.value = "50";
+            if (storyScoreValueEl) storyScoreValueEl.textContent = "50";
+            fetchMyRating(story.id);
+          }
         }
       } else {
         storyTitleBar.classList.add("hidden");
+        if (storyScoreBar) storyScoreBar.classList.add("hidden");
       }
     }
 
@@ -620,6 +646,68 @@ ${instructions}`;
 
     if (continueInput) continueInput.value = "";
     updateMainVisibility();
+  }
+
+  async function fetchMyRating(storyId) {
+    const token = getToken();
+    if (!token || !storyScoreInput) return;
+    try {
+      const r = await fetch("/api/stories/" + storyId + "/rating", { headers: { Authorization: "Bearer " + token } });
+      const data = await r.json().catch(() => ({}));
+      if (data.code === 0 && data.data && data.data.score != null) {
+        storyScoreInput.value = String(data.data.score);
+        if (storyScoreValueEl) storyScoreValueEl.textContent = data.data.score;
+      }
+    } catch (_) {}
+  }
+
+  async function onSubmitScore() {
+    if (!currentStory || !storyScoreInput) return;
+    const token = getToken();
+    if (!token) {
+      setStatus("请先登录", "error");
+      return;
+    }
+    const score = parseInt(storyScoreInput.value, 10);
+    if (Number.isNaN(score) || score < 0 || score > 100) {
+      setStatus("请输入 0～100 的分数", "error");
+      return;
+    }
+    if (btnSubmitScore) btnSubmitScore.disabled = true;
+    try {
+      const r = await fetch("/api/stories/" + currentStory.id + "/rate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: "Bearer " + token },
+        body: JSON.stringify({ score }),
+      });
+      const data = await r.json().catch(() => ({}));
+      if (data.code !== 0) {
+        setStatus(data.message || "提交失败", "error");
+        if (btnSubmitScore) btnSubmitScore.disabled = false;
+        return;
+      }
+      if (data.data) {
+        currentStory = data.data;
+        currentStory.myScore = data.myScore != null ? data.myScore : score;
+        if (storyScoreAvgEl) storyScoreAvgEl.textContent = Number(currentStory.scoreAvg).toFixed(1);
+        if (storyScoreCountEl) storyScoreCountEl.textContent = currentStory.scoreCount != null ? currentStory.scoreCount : 0;
+        const statsEl = document.getElementById("storyStats");
+        if (statsEl) {
+          const lc = currentStory.likeCount != null ? currentStory.likeCount : 0;
+          const cc = currentStory.commentCount != null ? currentStory.commentCount : 0;
+          const sc = currentStory.scoreCount != null ? currentStory.scoreCount : 0;
+          const avg = currentStory.scoreAvg != null ? Number(currentStory.scoreAvg).toFixed(1) : "--";
+          let stats = (currentStory.status === "completed" ? '<span class="story-status-tag">已完结</span>' : "") + "点赞 " + lc + " · 评论 " + cc;
+          if (sc > 0) stats += " · 评分 " + avg + "（" + sc + "人）";
+          statsEl.innerHTML = stats;
+        }
+      }
+      setStatus("评分已提交");
+      setTimeout(() => setStatus(""), 2000);
+    } catch (e) {
+      setStatus("请求失败：" + e.message, "error");
+    }
+    if (btnSubmitScore) btnSubmitScore.disabled = false;
   }
 
   function updateMainVisibility() {
@@ -903,6 +991,10 @@ ${instructions}`;
   if (btnNewOpeningClose) btnNewOpeningClose.addEventListener("click", closeNewOpeningModal);
   if (btnNewOpeningGenerate) btnNewOpeningGenerate.addEventListener("click", onNewOpeningGenerate);
   if (btnCreateNewStory) btnCreateNewStory.addEventListener("click", onCreateNewStory);
+  if (btnSubmitScore) btnSubmitScore.addEventListener("click", onSubmitScore);
+  if (storyScoreInput && storyScoreValueEl) {
+    storyScoreInput.addEventListener("input", () => { storyScoreValueEl.textContent = storyScoreInput.value; });
+  }
 
   if (storyCanvas) {
     storyCanvas.addEventListener("click", (e) => {
