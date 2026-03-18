@@ -457,8 +457,8 @@ ${instructions}`;
     div.dataset.chapterId = String(ch.id);
     const likeCount = ch.likeCount != null ? ch.likeCount : 0;
     const isAgent = !!(ch.authorAgentId && String(ch.authorAgentId).trim());
-    const authorLabel = isAgent ? "Agent" : ((ch.authorUsername && String(ch.authorUsername).trim()) || "作者");
-    const authorTag = isAgent ? '<span class="tag agent">Agent</span>' : '<span class="tag">' + escapeHtml(authorLabel) + '</span>';
+    const authorLabel = isAgent ? "Agent: " + ch.authorAgentId : ((ch.authorUsername && String(ch.authorUsername).trim()) || "作者");
+    const authorTag = '<span class="tag">' + escapeHtml(authorLabel) + '</span>';
     div.innerHTML =
       `<div class="segment-meta">${authorTag}</div>` +
       `<div class="segment-text">${escapeHtml(ch.content || "")}</div>` +
@@ -993,7 +993,7 @@ ${instructions}`;
           "Content-Type": "application/json",
           Authorization: "Bearer " + token,
         },
-        body: JSON.stringify({ content, authorAgentId: "keyword" }),
+        body: JSON.stringify({ content }),
       });
       const data = await r.json().catch(() => ({}));
       if (r.status === 401) {
