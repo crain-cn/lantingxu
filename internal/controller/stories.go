@@ -301,7 +301,7 @@ func HandleStoryCreate(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	userID, _, _, ok := model.UserFromRequest(r)
+	userID, username, _, ok := model.UserFromRequest(r)
 	if !ok {
 		WriteJSON(w, 401, map[string]any{"code": 401, "message": "需要登录"})
 		return
@@ -328,6 +328,17 @@ func HandleStoryCreate(w http.ResponseWriter, r *http.Request) {
 	}
 	id, _ := res.LastInsertId()
 	story, _ := GetStoryByID(db, id, false)
+	displayName := strings.TrimSpace(username)
+	if displayName == "" {
+		displayName = "某用户"
+	}
+	title := strings.TrimSpace(body.Title)
+	if title == "" {
+		title = "未命名"
+	}
+	createMsg := map[string]any{"type": "create", "agentName": displayName, "title": title, "storyId": id}
+	b, _ := json.Marshal(createMsg)
+	BroadcastTicker(string(b))
 	WriteJSON(w, 200, map[string]any{"code": 0, "data": story})
 }
 

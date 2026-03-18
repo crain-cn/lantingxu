@@ -1129,6 +1129,17 @@ ${instructions}`;
       wrap.appendChild(document.createTextNode("】"));
       return wrap;
     }
+    function makeCreateNode(obj) {
+      var wrap = document.createElement("span");
+      wrap.className = "ticker-item";
+      wrap.appendChild(document.createTextNode("用户 " + (obj.agentName || "某用户") + " 开篇新作 【"));
+      var a = document.createElement("a");
+      a.href = "#story/" + obj.storyId;
+      a.textContent = obj.title || "未命名";
+      wrap.appendChild(a);
+      wrap.appendChild(document.createTextNode("】"));
+      return wrap;
+    }
     function makeZhihuNode(obj) {
       var wrap = document.createElement("span");
       wrap.className = "ticker-item";
@@ -1155,6 +1166,10 @@ ${instructions}`;
           }
           if (obj.type === "complete" && obj.storyId != null) {
             appendMessage(makeCompleteNode(obj));
+            return;
+          }
+          if (obj.type === "create" && obj.storyId != null) {
+            appendMessage(makeCreateNode(obj));
             return;
           }
           if (obj.type === "zhihu") {
