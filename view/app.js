@@ -1306,10 +1306,17 @@ ${instructions}`;
       wrap.appendChild(document.createTextNode("】发布到知乎"));
       return wrap;
     }
+    var reconnectDelay = 5000;
+    var reconnectAttempts = 0;
+    var maxReconnectAttempts = 20;
     function connect() {
+      if (reconnectAttempts >= maxReconnectAttempts) return;
       var proto = location.protocol === "https:" ? "wss:" : "ws:";
       var ws = new WebSocket(proto + "//" + location.host + "/ws");
+      ws.onerror = function () { /* 由 onclose 统一重连，避免控制台刷屏 */ };
       ws.onmessage = function (e) {
+        reconnectAttempts = 0;
+        reconnectDelay = 5000;
         var raw = (e.data && String(e.data).trim()) || "";
         if (!raw) return;
         try {
@@ -1337,7 +1344,13 @@ ${instructions}`;
         } catch (_) {}
         appendMessage(raw);
       };
-      ws.onclose = function () { setTimeout(connect, 3000); };
+      ws.onclose = function () {
+        reconnectAttempts++;
+        if (reconnectAttempts < maxReconnectAttempts) {
+          setTimeout(connect, reconnectDelay);
+          if (reconnectDelay < 60000) reconnectDelay = Math.min(reconnectDelay + 2000, 60000);
+        }
+      };
     }
     connect();
   })();

@@ -121,9 +121,9 @@ func main() {
 func handleConfig(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]any{
-		"clientId":     clientID,
-		"redirectUri":  redirectURI,
-		"hasSecret":    clientSecret != "",
+		"clientId":    clientID,
+		"redirectUri": redirectURI,
+		"hasSecret":   clientSecret != "",
 	})
 }
 
