@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <link rel="icon" href="lotus-icon.png" type="image/png" />
   <title>兰亭序 · 故事续写</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -156,11 +156,46 @@
     }
     .sidebar-list .status-tag.completed { background: rgba(125, 157, 122, 0.25); color: var(--success); }
     @media (max-width: 768px) {
-      .page-layout { flex-direction: column; align-items: stretch; }
+      .page-layout { flex-direction: column; align-items: stretch; padding: 1rem 1rem 2.5rem; gap: 1.25rem; }
       .sidebar { width: 100%; display: flex; flex-wrap: wrap; gap: 1rem; align-items: flex-start; }
-      .sidebar-nav { flex: 1; min-width: 140px; }
+      .sidebar-nav { flex: 1 1 220px; min-width: 140px; }
       .sidebar .label { margin-top: 0.5rem; width: 100%; }
       .sidebar-status { flex-direction: row; flex-wrap: wrap; }
+      .sidebar-list { width: 100%; }
+    }
+    @media (max-width: 480px) {
+      body { line-height: 1.85; }
+      .page-layout { padding: 0.75rem 0.75rem 2.25rem; gap: 1rem; }
+      .bg-figure { display: none; }
+      .bamboo-wrap { display: none; }
+
+      h1 {
+        font-size: 1.65rem !important;
+        letter-spacing: 0.22em !important;
+        text-shadow: 0 0 24px var(--accent-glow);
+      }
+      .title-wrap::before,
+      .title-wrap::after {
+        font-size: 0.6rem !important;
+      }
+      .sub {
+        font-size: 0.72rem !important;
+        letter-spacing: 0.1em !important;
+      }
+
+      .story-canvas { padding: 1.4rem 1.05rem !important; }
+      .segment { padding-left: 1rem !important; }
+      .segment-text { text-indent: 1.2em !important; }
+      .segment-meta { font-size: 0.75rem !important; }
+
+      .btn { min-height: 44px; }
+      .btn-sm { min-height: 40px; }
+
+      .continue-input { font-size: 0.95rem !important; }
+      .modal-overlay { padding: 0.75rem !important; }
+      .modal { padding: 1.25rem 1.25rem !important; }
+
+      .stream-side { display: none; }
     }
     .container {
       flex: 1;
