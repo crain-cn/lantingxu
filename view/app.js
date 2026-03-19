@@ -2,7 +2,6 @@
   const storyCanvas = document.getElementById("storyCanvas");
   const storyTitleBar = document.getElementById("storyTitleBar");
   const storyTitleText = document.getElementById("storyTitleText");
-  const storyIdLink = document.getElementById("storyIdLink");
   const suspenseText = document.getElementById("suspenseText");
   const suspenseBox = document.getElementById("suspenseBox");
   const statusEl = document.getElementById("status");
@@ -653,10 +652,6 @@ ${instructions}`;
       if (story) {
         storyTitleBar.classList.remove("hidden");
         if (storyTitleText) storyTitleText.textContent = story.title || "无标题";
-        if (storyIdLink) {
-          storyIdLink.href = "#story/" + story.id;
-          storyIdLink.textContent = "#" + story.id;
-        }
         const idx = rankingList.findIndex((s) => s && s.id === story.id);
         if (storyNavPrev) {
           storyNavPrev.classList.toggle("hidden", idx <= 0);
