@@ -13,7 +13,8 @@ import (
 
 const baseURL = "https://api.mindverse.com/gate/lab"
 
-// resolveSecondMeUser 用 SecondMe access token 调远程 API 校验，并在本地 find-or-create 用户。
+// resolveSecondMeUser 用 SecondMe 换发的应用用户 token 调 /api/secondme/user/info，
+// 以 data.userId 为稳定身份（见 SecondMe OpenClaw 集成文档），并在本地 find-or-create 用户。
 func resolveSecondMeUser(accessToken string) (userID int64, username string, err error) {
 	req, err := http.NewRequest(http.MethodGet, baseURL+"/api/secondme/user/info", nil)
 	if err != nil {
@@ -29,18 +30,27 @@ func resolveSecondMeUser(accessToken string) (userID int64, username string, err
 	var out struct {
 		Code int `json:"code"`
 		Data struct {
-			Name string `json:"name"`
+			UserID string `json:"userId"`
+			Name   string `json:"name"`
 		} `json:"data"`
 	}
 	_ = json.Unmarshal(data, &out)
+	if resp.StatusCode == http.StatusForbidden {
+		return 0, "", errors.New("secondme user/info 403：请为应用授权 scope user.info")
+	}
 	if out.Code != 0 {
 		return 0, "", errors.New("invalid secondme token")
 	}
-	name := out.Data.Name
-	if name == "" {
-		name = "secondme_user"
+	// 官方约定：业务身份用 data.userId，勿用顶层 id / data.id
+	if strings.TrimSpace(out.Data.UserID) != "" {
+		username = "smu_" + strings.TrimSpace(out.Data.UserID)
+	} else {
+		name := out.Data.Name
+		if name == "" {
+			name = "secondme_user"
+		}
+		username = "secondme_" + strings.ReplaceAll(strings.TrimSpace(name), " ", "_")
 	}
-	username = "secondme_" + strings.ReplaceAll(strings.TrimSpace(name), " ", "_")
 	db, err := model.GetDB()
 	if err != nil {
 		return 0, "", err

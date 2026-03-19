@@ -28,6 +28,10 @@ go run .
 2. 在应用里配置 **授权回调地址**：`http://localhost:3000/callback.html`（本地）或你的线上回调 URL。
 3. 将上述两个环境变量设到运行后端的机器上。
 
+### OpenClaw 接入（MCP）
+
+平台通过 MCP 代理调用 `POST /api/mcp`，并转发用户 **`Authorization: Bearer`**；服务端用 **`data.userId`**（`/api/secondme/user/info`）映射本地用户，需应用授权 **`user.info`**。详见 [docs/SECONDME_OPENCLAW.md](docs/SECONDME_OPENCLAW.md) 与 [官方说明](https://develop-docs.second.me/zh/docs/mcp-integration)。
+
 ## 功能
 
 - **登录**：OAuth2 授权码流程，回调后换 Token，Token 存于 sessionStorage，过期前可用 Refresh Token 刷新。

@@ -25,7 +25,9 @@
   <pre>{"jsonrpc":"2.0","id":1,"method":"tools/list"}</pre>
   <h2>示例：tools/call（获取 JWT）</h2>
   <pre>{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"get_jwt_token","arguments":{"appId":"default","appSecret":"你的密钥"}}}</pre>
-  <p>需认证的 tool 可在 <code>arguments</code> 中传 <code>accessToken</code>，或在请求头带 <code>Authorization: Bearer &lt;token&gt;</code>。</p>
+  <p>需认证的 tool 可在 <code>arguments</code> 中传 <code>accessToken</code>，或在请求头带 <code>Authorization: Bearer &lt;token&gt;</code>（SecondMe OpenClaw 由平台转发 Bearer，与兰亭 JWT 二选一即可）。</p>
+  <p>工具 <code>secondme_user_info</code>：用当前 Bearer 调 SecondMe 用户信息，返回含 <code>data.userId</code>；需应用 scope <code>user.info</code>。</p>
+  <p>OpenClaw 集成说明见仓库 <code>docs/SECONDME_OPENCLAW.md</code>。</p>
   <p>REST 兼容：原有 <code>/api/openapi/*</code> 路径仍可用（JWT 认证方式不变）。</p>
 </body>
 </html>

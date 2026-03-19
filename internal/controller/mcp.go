@@ -3,6 +3,7 @@ package controller
 import (
 	"bytes"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -45,6 +46,16 @@ type inputSchema struct {
 
 var mcpTools = []mcpTool{
 	{
+		Name:        "secondme_user_info",
+		Description: "OpenClaw/SecondMe：用当前请求转发的 Bearer（lba_at_*）查询 SecondMe 用户信息，返回含 data.userId。需应用授权 scope user.info；无需兰亭 JWT",
+		InputSchema: inputSchema{
+			Type: "object",
+			Properties: map[string]interface{}{
+				"accessToken": map[string]string{"type": "string", "description": "可选；默认使用请求头 Authorization Bearer"},
+			},
+		},
+	},
+	{
 		Name:        "create_app",
 		Description: "自动创建 API 应用，生成 appId 与 appSecret，无需认证。创建后可用 get_jwt_token 换取 JWT",
 		InputSchema: inputSchema{
@@ -75,7 +86,7 @@ var mcpTools = []mcpTool{
 				"authorAgentId": map[string]string{"type": "string", "description": "续写来源 Agent 标识"},
 				"page":          map[string]interface{}{"type": "integer", "description": "页码", "default": 1},
 				"limit":         map[string]interface{}{"type": "integer", "description": "每页条数", "default": 20},
-				"accessToken":   map[string]string{"type": "string", "description": "可选，JWT"},
+				"accessToken":   map[string]string{"type": "string", "description": "可选，兰亭 JWT 或 SecondMe 转发 Bearer"},
 			},
 			Required: []string{"authorAgentId"},
 		},
@@ -87,7 +98,7 @@ var mcpTools = []mcpTool{
 			Type: "object",
 			Properties: map[string]interface{}{
 				"status":      map[string]interface{}{"type": "string", "description": "ongoing | completed", "default": "ongoing"},
-				"accessToken": map[string]string{"type": "string", "description": "可选，JWT"},
+				"accessToken": map[string]string{"type": "string", "description": "可选，兰亭 JWT 或 SecondMe 转发 Bearer"},
 			},
 		},
 	},
@@ -101,9 +112,9 @@ var mcpTools = []mcpTool{
 				"opening":       map[string]string{"type": "string", "description": "开篇正文"},
 				"tags":          map[string]string{"type": "string", "description": "标签"},
 				"authorAgentId": map[string]string{"type": "string", "description": "开篇来源 Agent"},
-				"accessToken":   map[string]string{"type": "string", "description": "JWT"},
+				"accessToken":   map[string]string{"type": "string", "description": "兰亭 JWT 或 SecondMe Bearer；可仅由请求头 Authorization 传入"},
 			},
-			Required: []string{"title", "accessToken"},
+			Required: []string{"title"},
 		},
 	},
 	{
@@ -115,9 +126,9 @@ var mcpTools = []mcpTool{
 				"storyId":       map[string]string{"type": "string", "description": "故事 ID"},
 				"content":       map[string]string{"type": "string", "description": "续写正文"},
 				"authorAgentId": map[string]string{"type": "string", "description": "续写来源 Agent"},
-				"accessToken":   map[string]string{"type": "string", "description": "JWT"},
+				"accessToken":   map[string]string{"type": "string", "description": "兰亭 JWT 或 SecondMe Bearer；可仅由请求头传入"},
 			},
-			Required: []string{"storyId", "content", "accessToken"},
+			Required: []string{"storyId", "content"},
 		},
 	},
 	{
@@ -129,9 +140,9 @@ var mcpTools = []mcpTool{
 				"storyId":       map[string]string{"type": "string", "description": "故事 ID"},
 				"score":         map[string]interface{}{"type": "integer", "description": "0～100"},
 				"authorAgentId": map[string]string{"type": "string", "description": "打分来源 Agent"},
-				"accessToken":   map[string]string{"type": "string", "description": "JWT"},
+				"accessToken":   map[string]string{"type": "string", "description": "兰亭 JWT 或 SecondMe Bearer；可仅由请求头传入"},
 			},
-			Required: []string{"storyId", "score", "accessToken"},
+			Required: []string{"storyId", "score"},
 		},
 	},
 	{
@@ -141,9 +152,9 @@ var mcpTools = []mcpTool{
 			Type: "object",
 			Properties: map[string]interface{}{
 				"storyId":     map[string]string{"type": "string", "description": "故事 ID"},
-				"accessToken": map[string]string{"type": "string", "description": "JWT"},
+				"accessToken": map[string]string{"type": "string", "description": "兰亭 JWT 或 SecondMe Bearer；可仅由请求头传入"},
 			},
-			Required: []string{"storyId", "accessToken"},
+			Required: []string{"storyId"},
 		},
 	},
 	{
@@ -157,9 +168,9 @@ var mcpTools = []mcpTool{
 				"image_urls":    map[string]interface{}{"type": "array", "items": map[string]string{"type": "string"}, "description": "图片 URL 列表"},
 				"ring_id":       map[string]string{"type": "string", "description": "圈子 ID"},
 				"authorAgentId": map[string]string{"type": "string", "description": "发布来源 Agent"},
-				"accessToken":   map[string]string{"type": "string", "description": "JWT"},
+				"accessToken":   map[string]string{"type": "string", "description": "兰亭 JWT 或 SecondMe Bearer；可仅由请求头传入"},
 			},
-			Required: []string{"title", "content", "accessToken"},
+			Required: []string{"title", "content"},
 		},
 	},
 }
@@ -236,6 +247,22 @@ func handleMCPToolsCall(backend http.Handler, outer *http.Request, params json.R
 	var body []byte
 	var method string
 	switch args.Name {
+	case "secondme_user_info":
+		if accessToken == "" {
+			return mcpContentResult(errMsg("missing bearer token：OpenClaw 需在 integration 配置 authMode bearer_token，或 arguments 传 accessToken"), true)
+		}
+		reqInfo, err := http.NewRequest(http.MethodGet, baseURL+"/api/secondme/user/info", nil)
+		if err != nil {
+			return mcpContentResult(errMsg(err.Error()), true)
+		}
+		reqInfo.Header.Set("Authorization", "Bearer "+accessToken)
+		resInfo, err := http.DefaultClient.Do(reqInfo)
+		if err != nil {
+			return mcpContentResult(errMsg(err.Error()), true)
+		}
+		defer resInfo.Body.Close()
+		bodyInfo, _ := io.ReadAll(resInfo.Body)
+		return mcpContentResult(string(bodyInfo), resInfo.StatusCode >= 400)
 	case "create_app":
 		method = http.MethodPost
 		path = mcpOpenAPIPrefix + "/auth/apps"
