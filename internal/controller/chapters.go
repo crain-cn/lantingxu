@@ -10,12 +10,46 @@ import (
 	"lantingxu/internal/model"
 )
 
-// 允许删除段落的账号（secondme 用户名）
+// 允许删除段落的账号（secondme 用户名；无 userId 时本地为 secondme_*）
 var allowedDeleteChapterUsernames = map[string]bool{
 	"secondme_大学之道": true,
 	"secondme_兰亭集1":  true,
 	"secondme_huan89983": true,
 	"secondme_帅进超":   true,
+}
+
+// SecondMe 返回 data.userId 时本地用户名为 smu_*，与上表不一致；用展示名再判一次
+var allowedDeleteChapterDisplayNames = map[string]bool{
+	"大学之道":   true,
+	"兰亭集1":   true,
+	"huan89983": true,
+	"帅进超":    true,
+}
+
+func bearerToken(r *http.Request) string {
+	auth := r.Header.Get("Authorization")
+	if !strings.HasPrefix(auth, "Bearer ") {
+		return ""
+	}
+	return strings.TrimSpace(strings.TrimPrefix(auth, "Bearer "))
+}
+
+func canDeleteChapter(r *http.Request, username string) bool {
+	if allowedDeleteChapterUsernames[username] {
+		return true
+	}
+	if !strings.HasPrefix(username, "smu_") {
+		return false
+	}
+	token := bearerToken(r)
+	if token == "" {
+		return false
+	}
+	_, smName, err := loadSecondMeUserInfo(token)
+	if err != nil || smName == "" {
+		return false
+	}
+	return allowedDeleteChapterDisplayNames[smName]
 }
 
 func HandleChapterLike(w http.ResponseWriter, r *http.Request) {
@@ -150,7 +184,7 @@ func HandleChapterDelete(w http.ResponseWriter, r *http.Request) {
 		WriteJSON(w, 401, map[string]any{"code": 401, "message": "需要登录"})
 		return
 	}
-	if !allowedDeleteChapterUsernames[username] {
+	if !canDeleteChapter(r, username) {
 		WriteJSON(w, 403, map[string]any{"code": 403, "message": "无删除段落权限"})
 		return
 	}

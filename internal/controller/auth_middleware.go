@@ -13,17 +13,16 @@ import (
 
 const baseURL = "https://api.mindverse.com/gate/lab"
 
-// resolveSecondMeUser 用 SecondMe 换发的应用用户 token 调 /api/secondme/user/info，
-// 以 data.userId 为稳定身份（见 SecondMe OpenClaw 集成文档），并在本地 find-or-create 用户。
-func resolveSecondMeUser(accessToken string) (userID int64, username string, err error) {
+// loadSecondMeUserInfo 调 /api/secondme/user/info，返回 data.userId、data.name（不写库）。
+func loadSecondMeUserInfo(accessToken string) (userID, name string, err error) {
 	req, err := http.NewRequest(http.MethodGet, baseURL+"/api/secondme/user/info", nil)
 	if err != nil {
-		return 0, "", err
+		return "", "", err
 	}
 	req.Header.Set("Authorization", "Bearer "+accessToken)
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		return 0, "", err
+		return "", "", err
 	}
 	defer resp.Body.Close()
 	data, _ := io.ReadAll(resp.Body)
@@ -36,20 +35,30 @@ func resolveSecondMeUser(accessToken string) (userID int64, username string, err
 	}
 	_ = json.Unmarshal(data, &out)
 	if resp.StatusCode == http.StatusForbidden {
-		return 0, "", errors.New("secondme user/info 403：请为应用授权 scope user.info")
+		return "", "", errors.New("secondme user/info 403：请为应用授权 scope user.info")
 	}
 	if out.Code != 0 {
-		return 0, "", errors.New("invalid secondme token")
+		return "", "", errors.New("invalid secondme token")
+	}
+	return strings.TrimSpace(out.Data.UserID), strings.TrimSpace(out.Data.Name), nil
+}
+
+// resolveSecondMeUser 用 SecondMe 换发的应用用户 token 调 /api/secondme/user/info，
+// 以 data.userId 为稳定身份（见 SecondMe OpenClaw 集成文档），并在本地 find-or-create 用户。
+func resolveSecondMeUser(accessToken string) (userID int64, username string, err error) {
+	smUID, smName, err := loadSecondMeUserInfo(accessToken)
+	if err != nil {
+		return 0, "", err
 	}
 	// 官方约定：业务身份用 data.userId，勿用顶层 id / data.id
-	if strings.TrimSpace(out.Data.UserID) != "" {
-		username = "smu_" + strings.TrimSpace(out.Data.UserID)
+	if smUID != "" {
+		username = "smu_" + smUID
 	} else {
-		name := out.Data.Name
+		name := smName
 		if name == "" {
 			name = "secondme_user"
 		}
-		username = "secondme_" + strings.ReplaceAll(strings.TrimSpace(name), " ", "_")
+		username = "secondme_" + strings.ReplaceAll(name, " ", "_")
 	}
 	db, err := model.GetDB()
 	if err != nil {
