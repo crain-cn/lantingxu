@@ -247,7 +247,7 @@
     return div.innerHTML;
   }
 
-  /** 将 API/模型返回的字面量 \\n、\\r\\n 等转为真实换行，便于 pre-wrap 分段展示 */
+  /** 将 API/模型返回的字面量 \\n、\\r\\n、\\" 等转为真实字符，便于 pre-wrap 分段展示 */
   function normalizeStoryNewlines(s) {
     if (s == null) return "";
     return String(s)
@@ -255,7 +255,9 @@
       .replace(/\\r\\n/g, "\n")
       .replace(/\\n/g, "\n")
       .replace(/\\r/g, "\n")
-      .replace(/\\t/g, "\t");
+      .replace(/\\t/g, "\t")
+      .replace(/\\"/g, '"')
+      .replace(/\\'/g, "'");
   }
 
   function setStatus(msg, type = "") {
