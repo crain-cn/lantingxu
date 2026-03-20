@@ -247,6 +247,17 @@
     return div.innerHTML;
   }
 
+  /** 将 API/模型返回的字面量 \\n、\\r\\n 等转为真实换行，便于 pre-wrap 分段展示 */
+  function normalizeStoryNewlines(s) {
+    if (s == null) return "";
+    return String(s)
+      .replace(/\r\n/g, "\n")
+      .replace(/\\r\\n/g, "\n")
+      .replace(/\\n/g, "\n")
+      .replace(/\\r/g, "\n")
+      .replace(/\\t/g, "\t");
+  }
+
   function setStatus(msg, type = "") {
     if (!statusEl) return;
     statusEl.textContent = msg;
@@ -256,10 +267,10 @@
   function getStoryContext(story) {
     if (!story) return "";
     const parts = [];
-    if (story.opening) parts.push(story.opening);
+    if (story.opening) parts.push(normalizeStoryNewlines(story.opening));
     const chapters = story.chapters || [];
     chapters.forEach((ch) => {
-      if (ch.content) parts.push(ch.content);
+      if (ch.content) parts.push(normalizeStoryNewlines(ch.content));
     });
     return parts.length ? parts.join("\n\n") : "（故事尚未开始，请从第一段写起。）";
   }
@@ -268,7 +279,7 @@
     if (!story) return "";
     const chapters = story.chapters || [];
     const last = chapters[chapters.length - 1];
-    return last && last.content ? extractSuspense(last.content) : "";
+    return last && last.content ? extractSuspense(normalizeStoryNewlines(last.content)) : "";
   }
 
   function extractSuspense(newText) {
@@ -467,7 +478,7 @@ ${instructions}`;
       meta && meta.length
         ? `<div class="segment-meta">${meta.map((m) => `<span class="tag${m.cls ? " " + m.cls : ""}">${escapeHtml(typeof m === "string" ? m : m.text)}</span>`).join("")}</div>`
         : "";
-    div.innerHTML = metaHtml + `<div class="segment-text">${escapeHtml(content)}</div>`;
+    div.innerHTML = metaHtml + `<div class="segment-text">${escapeHtml(normalizeStoryNewlines(content))}</div>`;
     return div;
   }
 
@@ -492,7 +503,7 @@ ${instructions}`;
     const deleteBtn = canDeleteParagraph() ? `<button type="button" class="btn-chapter-delete" data-chapter-id="${ch.id}">删除</button>` : "";
     div.innerHTML =
       `<div class="segment-meta">${authorTag}</div>` +
-      `<div class="segment-text">${escapeHtml(ch.content || "")}</div>` +
+      `<div class="segment-text">${escapeHtml(normalizeStoryNewlines(ch.content || ""))}</div>` +
       `<div class="segment-actions">` +
       `<button type="button" class="btn-chapter-like" data-chapter-id="${ch.id}" data-like-count="${likeCount}">点赞${likeCount > 0 ? " " + likeCount : ""}</button>` +
       `<button type="button" class="btn-chapter-comment" data-chapter-id="${ch.id}">评论</button>` +
@@ -517,7 +528,7 @@ ${instructions}`;
 
   function renderCommentList(ul, comments) {
     ul.innerHTML = comments
-      .map((c) => `<li class="comment-item"><span class="comment-meta">${escapeHtml(c.username || "用户")}</span>${escapeHtml(c.content || "")}</li>`)
+      .map((c) => `<li class="comment-item"><span class="comment-meta">${escapeHtml(c.username || "用户")}</span>${escapeHtml(normalizeStoryNewlines(c.content || ""))}</li>`)
       .join("");
   }
 
