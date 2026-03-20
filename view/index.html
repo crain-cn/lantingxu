@@ -155,6 +155,26 @@
       color: var(--accent);
     }
     .sidebar-list .status-tag.completed { background: rgba(125, 157, 122, 0.25); color: var(--success); }
+    .sidebar-audio {
+      margin-top: 1.25rem;
+      width: 100%;
+      border: 1px solid var(--paper-edge);
+      background: var(--paper);
+      border-radius: 2px;
+      padding: 0.5rem 0.75rem 0.65rem;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.2);
+    }
+    .sidebar-audio .sidebar-audio-title {
+      font-size: 0.75rem;
+      color: var(--ink-dim);
+      letter-spacing: 0.1em;
+      margin-bottom: 0.45rem;
+    }
+    .sidebar-audio audio {
+      width: 100%;
+      height: 36px;
+      opacity: 0.95;
+    }
     @media (max-width: 768px) {
       .page-layout { flex-direction: column; align-items: stretch; padding: 1rem 1rem 2.5rem; gap: 1.25rem; }
       .sidebar { width: 100%; display: flex; flex-wrap: wrap; gap: 1rem; align-items: flex-start; }
@@ -902,6 +922,15 @@
         <label><input type="radio" name="status" value="completed" /> 已完结</label>
         <label><input type="radio" name="status" value="ongoing" /> 进行中</label>
       </div>
+      <div class="sidebar-audio" aria-label="背景音乐">
+        <p class="sidebar-audio-title">配乐</p>
+        <audio id="bgmAudio" controls preload="auto" autoplay>
+          <source src="https://story.lemconn.com/M50000128N3r2SYKMF.mp3?v=1" type="audio/mpeg" />
+          <source src="/M50000128N3r2SYKMF.mp3" type="audio/mpeg" />
+          <source src="M50000128N3r2SYKMF.mp3" type="audio/mpeg" />
+          您的浏览器不支持音频播放。
+        </audio>
+      </div>
       <div class="sidebar-list">
         <p class="list-title" id="sidebarListTitle">热榜</p>
         <ul id="sidebarList"></ul>
@@ -1161,6 +1190,36 @@
     </div>
   </aside>
   </div>
+  <script>
+    (function () {
+      var a = document.getElementById("bgmAudio");
+      if (!a) return;
+      function tryPlay() {
+        return a.play();
+      }
+      function armUnlock() {
+        function once() {
+          tryPlay().catch(function () {});
+          document.removeEventListener("click", once);
+          document.removeEventListener("touchstart", once);
+          document.removeEventListener("keydown", once);
+        }
+        document.addEventListener("click", once);
+        document.addEventListener("touchstart", once, { passive: true });
+        document.addEventListener("keydown", once);
+      }
+      function start() {
+        tryPlay().catch(function () {
+          armUnlock();
+        });
+      }
+      if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", start);
+      } else {
+        start();
+      }
+    })();
+  </script>
   <script src="app.js"></script>
 </body>
 </html>
