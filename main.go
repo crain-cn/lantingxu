@@ -75,6 +75,7 @@ func main() {
 	go hub.Run()
 	controller.SetTickerHub(hub)
 	http.HandleFunc("/ws", cors(controller.HandleWS))
+	http.HandleFunc("/api/ticker/bot-history", cors(controller.HandleTickerBotHistory))
 
 	http.HandleFunc("/api/config", cors(handleConfig))
 	http.HandleFunc("/api/oauth/token", cors(handleOAuthToken))

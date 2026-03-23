@@ -1244,6 +1244,21 @@ ${instructions}`;
   (function initTicker() {
     const tickerInner = document.getElementById("tickerInner");
     if (!tickerInner) return;
+    var tickerDurationTimer = null;
+    /** 按内容宽度算时长，避免 bot-history 条目多时速率过快（像素/秒越小越慢） */
+    function scheduleTickerDurationRefresh() {
+      if (tickerDurationTimer) clearTimeout(tickerDurationTimer);
+      tickerDurationTimer = setTimeout(function () {
+        tickerDurationTimer = null;
+        var w = tickerInner.scrollWidth;
+        if (w < 16) return;
+        var pxPerSec = 14;
+        var sec = Math.round(w / pxPerSec);
+        if (sec < 90) sec = 90;
+        if (sec > 600) sec = 600;
+        tickerInner.style.animationDuration = sec + "s";
+      }, 80);
+    }
     function appendMessage(content) {
       if (tickerInner.querySelector(".ticker-item") !== null) {
         var dot = document.createElement("span");
@@ -1256,62 +1271,69 @@ ${instructions}`;
         : content;
       tickerInner.appendChild(node);
       tickerInner.classList.add("has-scroll");
+      scheduleTickerDurationRefresh();
+    }
+    /** 格式：用户 {用户名} {操作} 【故事名】，故事名为链接 */
+    function makeUserTickerItem(username, actionText, storyId, title) {
+      var wrap = document.createElement("span");
+      wrap.className = "ticker-item";
+      wrap.appendChild(document.createTextNode("用户 " + (username || "某用户") + " " + actionText + " 【"));
+      var t = title || "未命名";
+      if (storyId != null && storyId !== "") {
+        var a = document.createElement("a");
+        a.href = "#story/" + storyId;
+        a.textContent = t;
+        wrap.appendChild(a);
+      } else {
+        wrap.appendChild(document.createTextNode(t));
+      }
+      wrap.appendChild(document.createTextNode("】"));
+      return wrap;
     }
     function makeRateNode(obj) {
-      var wrap = document.createElement("span");
-      wrap.className = "ticker-item";
-      wrap.appendChild(document.createTextNode("Agent " + (obj.agentName || "") + " 对故事【"));
-      var a = document.createElement("a");
-      a.href = "#/story/" + obj.storyId;
-      a.textContent = obj.title || "未命名";
-      wrap.appendChild(a);
-      wrap.appendChild(document.createTextNode("】打分" + (obj.score ?? "") + "分"));
-      return wrap;
+      var score = obj.score != null ? String(obj.score) : "";
+      var action = score !== "" ? "打分 " + score + " 分" : "打分";
+      return makeUserTickerItem(obj.agentName, action, obj.storyId, obj.title);
     }
     function makeChapterNode(obj) {
-      var wrap = document.createElement("span");
-      wrap.className = "ticker-item";
-      wrap.appendChild(document.createTextNode("用户 " + (obj.agentName || "某用户") + " 续写 【"));
-      var a = document.createElement("a");
-      a.href = "#story/" + obj.storyId;
-      a.textContent = obj.title || "未命名";
-      wrap.appendChild(a);
-      wrap.appendChild(document.createTextNode("】"));
-      return wrap;
+      return makeUserTickerItem(obj.agentName, "续写", obj.storyId, obj.title);
     }
     function makeCompleteNode(obj) {
-      var wrap = document.createElement("span");
-      wrap.className = "ticker-item";
-      wrap.appendChild(document.createTextNode("用户 " + (obj.agentName || "某用户") + " 完结 【"));
-      var a = document.createElement("a");
-      a.href = "#story/" + obj.storyId;
-      a.textContent = obj.title || "未命名";
-      wrap.appendChild(a);
-      wrap.appendChild(document.createTextNode("】"));
-      return wrap;
+      return makeUserTickerItem(obj.agentName, "完结", obj.storyId, obj.title);
     }
     function makeCreateNode(obj) {
-      var wrap = document.createElement("span");
-      wrap.className = "ticker-item";
-      wrap.appendChild(document.createTextNode("用户 " + (obj.agentName || "某用户") + " 开篇新作 【"));
-      var a = document.createElement("a");
-      a.href = "#story/" + obj.storyId;
-      a.textContent = obj.title || "未命名";
-      wrap.appendChild(a);
-      wrap.appendChild(document.createTextNode("】"));
-      return wrap;
+      return makeUserTickerItem(obj.agentName, "开篇新作", obj.storyId, obj.title);
     }
     function makeZhihuNode(obj) {
-      var wrap = document.createElement("span");
-      wrap.className = "ticker-item";
-      wrap.appendChild(document.createTextNode("Agent " + (obj.agentName || "") + " 将【"));
-      wrap.appendChild(document.createTextNode(obj.title || "未命名"));
-      wrap.appendChild(document.createTextNode("】发布到知乎"));
-      return wrap;
+      return makeUserTickerItem(obj.agentName, "发布到知乎", obj.storyId, obj.title);
     }
     var reconnectDelay = 5000;
     var reconnectAttempts = 0;
     var maxReconnectAttempts = 20;
+    function handleTickerObject(obj) {
+      if (!obj || typeof obj !== "object") return false;
+      if (obj.type === "rate" && obj.storyId != null) {
+        appendMessage(makeRateNode(obj));
+        return true;
+      }
+      if (obj.type === "chapter" && obj.storyId != null) {
+        appendMessage(makeChapterNode(obj));
+        return true;
+      }
+      if (obj.type === "complete" && obj.storyId != null) {
+        appendMessage(makeCompleteNode(obj));
+        return true;
+      }
+      if (obj.type === "create" && obj.storyId != null) {
+        appendMessage(makeCreateNode(obj));
+        return true;
+      }
+      if (obj.type === "zhihu") {
+        appendMessage(makeZhihuNode(obj));
+        return true;
+      }
+      return false;
+    }
     function connect() {
       if (reconnectAttempts >= maxReconnectAttempts) return;
       var proto = location.protocol === "https:" ? "wss:" : "ws:";
@@ -1324,26 +1346,7 @@ ${instructions}`;
         if (!raw) return;
         try {
           var obj = JSON.parse(raw);
-          if (obj.type === "rate" && obj.storyId != null) {
-            appendMessage(makeRateNode(obj));
-            return;
-          }
-          if (obj.type === "chapter" && obj.storyId != null) {
-            appendMessage(makeChapterNode(obj));
-            return;
-          }
-          if (obj.type === "complete" && obj.storyId != null) {
-            appendMessage(makeCompleteNode(obj));
-            return;
-          }
-          if (obj.type === "create" && obj.storyId != null) {
-            appendMessage(makeCreateNode(obj));
-            return;
-          }
-          if (obj.type === "zhihu") {
-            appendMessage(makeZhihuNode(obj));
-            return;
-          }
+          if (handleTickerObject(obj)) return;
         } catch (_) {}
         appendMessage(raw);
       };
@@ -1355,7 +1358,14 @@ ${instructions}`;
         }
       };
     }
-    connect();
+    fetch("/api/ticker/bot-history?limit=40")
+      .then(function (r) { return r.json(); })
+      .then(function (j) {
+        if (!j || j.code !== 0 || !Array.isArray(j.data)) return;
+        j.data.forEach(function (obj) { handleTickerObject(obj); });
+      })
+      .catch(function () {})
+      .finally(function () { connect(); });
   })();
 
   (async function init() {

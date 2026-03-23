@@ -2,9 +2,12 @@ package controller
 
 import (
 	"net/http"
+	"strconv"
 	"sync"
 
 	"github.com/gorilla/websocket"
+
+	"lantingxu/internal/model"
 )
 
 var upgrader = websocket.Upgrader{
@@ -67,6 +70,25 @@ func BroadcastTicker(text string) {
 	if tickerHub != nil {
 		tickerHub.Broadcast([]byte(text))
 	}
+}
+
+func HandleTickerBotHistory(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	limit := 30
+	if s := r.URL.Query().Get("limit"); s != "" {
+		if n, err := strconv.Atoi(s); err == nil && n > 0 && n <= 100 {
+			limit = n
+		}
+	}
+	items, err := model.BotTickerHistory(limit)
+	if err != nil {
+		WriteJSON(w, 500, map[string]any{"code": 500, "message": err.Error()})
+		return
+	}
+	WriteJSON(w, 200, map[string]any{"code": 0, "data": items})
 }
 
 func HandleWS(w http.ResponseWriter, r *http.Request) {
